@@ -8,6 +8,8 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 #import time
 import mathutils
+import bgl
+import math
 
 def main(context, event, tree, bmesh):
     """Run this function on left mouse, execute the ray cast"""
@@ -59,9 +61,9 @@ def main(context, event, tree, bmesh):
     matrix = context.object.matrix_world
     hit, normal, face_index = obj_ray_cast(matrix)
     if hit is None:
-        return None
+        return None, None
 
-    return bmesh.faces[face_index]
+    return hit, bmesh.faces[face_index]
 
     # cast rays and find the closest object
     # best_length_squared = -1.0
@@ -87,6 +89,16 @@ def main(context, event, tree, bmesh):
     #     best_original.select_set(True)
     #     context.view_layer.objects.active = best_original
 
+# returns distance_to_edge, distance_to_closest_vert, index_of_closest_vert
+def distance_to_edge(point, edge):
+    v1, v2 = [v.co for v in edge.verts]
+    d1 = (point - v1).length
+    d2 = (point - v2).length
+    a = (v1 - v2).length
+    p = (a + d1 + d2) / 2
+    h = (2 / a) * math.sqrt(p * (p - a) * (p - d1) * (p - d2))
+    d, index = (d1, 0) if d1 < d2 else (d2, 1)
+    return min(h, d1, d2), d, index
 
 class ViewOperatorRayCast(bpy.types.Operator):
     """Modal object selection with a ray cast"""
@@ -107,9 +119,40 @@ class ViewOperatorRayCast(bpy.types.Operator):
             indices=indices,
         )
 
+
+    def find_closest(self, point, face):
+        if not point:
+            return None, None, None, None
+
+        edge_dist = float("inf")
+        vert_dist = float("inf")
+        edge = None
+        vert = None
+        for e in face.edges:
+            d, vd, i = distance_to_edge(point, e)
+            if d < edge_dist:
+                edge_dist = d
+                edge = e
+                vert = e.verts[i]
+                vert_dist = vd
+
+        return vert, edge, edge_dist, vert_dist
+
+    def batch_vertices(self, vertices):
+        coords = [v.co for v in vertices]
+        return batch_for_shader(self.shader, 'POINTS', {"pos": coords})
+
+    def batch_edges(self, edges):
+#       vertex coordinates in edges
+        coords = [v.co for e in edges for v in e.verts]
+
+#        shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
+        return batch_for_shader(self.shader, 'LINES', {"pos": coords})
+
     def _draw(self):
 #        if not self.batch:
 #            return
+        bgl.glLineWidth(3)
 
         self.shader.bind()
         self.shader.uniform_float("color", (1, 0, 0, 1))
@@ -120,7 +163,12 @@ class ViewOperatorRayCast(bpy.types.Operator):
             # allow navigation
             return {'PASS_THROUGH'}
         elif event.type == 'MOUSEMOVE':
-            self.batch = self.batch_polygon(main(context, event, self.tree, self.bmesh))
+            hit, face = main(context, event, self.tree, self.bmesh)
+            if hit:
+                vert, edge, edge_dist, vert_dist = self.find_closest(hit, face)
+                self.batch = self.batch_vertices([vert])
+            else:
+                self.batch = self.batch_vertices([])
             self.redraw()
             return {'RUNNING_MODAL'}
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
