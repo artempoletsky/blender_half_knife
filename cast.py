@@ -182,8 +182,8 @@ class ViewOperatorRayCast(bpy.types.Operator):
         edge, vert = bmesh.utils.edge_split(self.edge, self.edge.verts[0], self.split_ratio)
         for v in self.initial_vertices:
             v.select_set(False)
-        
-        
+        self.initial_vertices.append(vert)
+        bmesh.ops.connect_vert_pair(self.bmesh, verts = self.initial_vertices)
         bmesh.update_edit_mesh(self.object.data, True)
         vert.select_set(True)
         self.bmesh.select_history.add(vert)
