@@ -94,12 +94,17 @@ def vertex_project(point, edge):
     ab = v2 - v1
     temp = ab * (np.dot(ap,ab) / np.dot(ab,ab))
     print(temp, v1, ab)
-    result = v1 + temp 
-    d1 = (v1 - result).length
-    d2 = (v2 - result).length
+    projected = v1 + temp
+    d1 = (v1 - projected).length
+    d2 = (v2 - projected).length
     a = ab.length
-    result = result if abs(d1 + d2 - a) < 0.01 else edge.verts[0] if d1 < d2 else edge.verts[1]
-    return result
+    # projected = projected if abs(d1 + d2 - a) < 0.001 else edge.verts[0] if d1 < d2 else edge.verts[1]
+    split_ratio = 0
+    if (abs(d1 + d2 - a) < 0.001):
+        split_ratio = d1 / a
+    else:
+        projected, split_ratio = (edge.verts[0], 0) if d1 < d2 else (edge.verts[1], 1)
+    return projected, split_ratio
 
 # returns distance_to_edge, distance_to_closest_vert, index_of_closest_vert
 def distance_to_edge(point, edge):
@@ -151,8 +156,7 @@ class ViewOperatorRayCast(bpy.types.Operator):
         return vert, edge, edge_dist, vert_dist
 
     def batch_vertices(self, vertices):
-        coords = [v.co for v in vertices]
-        return batch_for_shader(self.shader, 'POINTS', {"pos": coords})
+        return batch_for_shader(self.shader, 'POINTS', {"pos": vertices})
 
     def batch_edges(self, edges):
 #       vertex coordinates in edges
@@ -172,6 +176,18 @@ class ViewOperatorRayCast(bpy.types.Operator):
         bgl.glPointSize(12)
         self.batch.draw(self.shader)
 
+    def run_cut(self):
+#        v = self.bmesh.verts.new()
+#        v.co = self.new_vert
+        edge, vert = bmesh.utils.edge_split(self.edge, self.edge.verts[0], self.split_ratio)
+        for v in self.initial_vertices:
+            v.select_set(False)
+        
+        
+        bmesh.update_edit_mesh(self.object.data, True)
+        vert.select_set(True)
+        self.bmesh.select_history.add(vert)
+
     def modal(self, context, event):
         if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
             # allow navigation
@@ -180,12 +196,16 @@ class ViewOperatorRayCast(bpy.types.Operator):
             hit, face = main(context, event, self.tree, self.bmesh)
             if hit:
                 vert, edge, edge_dist, vert_dist = self.find_closest(hit, face)
-                new_vert = vertex_project(hit, edge)
-                if type(new_vert) != bmesh.types.BMVert:
-                    v = self.bmesh.vertices.new()
-                    v.co = new_vert
-                    new_vert = v
-                
+                new_vert, split_ratio = vertex_project(hit, edge)
+                self.split_ratio = split_ratio
+                self.edge = edge
+                # if no need to create new vertex
+                if split_ratio in [0, 1]:
+                    new_vert = new_vert.co
+#
+#
+#                    new_vert = v
+                # self.new_vert = new_vert
                 self.batch = self.batch_vertices([new_vert])
             else:
                 self.batch = self.batch_vertices([])
@@ -194,6 +214,10 @@ class ViewOperatorRayCast(bpy.types.Operator):
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             self.draw_end()
             return {'CANCELLED'}
+        elif event.type in {'LEFTMOUSE'}:
+            self.draw_end()
+            self.run_cut()
+            return {'FINISHED'}
 
         return {'RUNNING_MODAL'}
 
@@ -208,8 +232,10 @@ class ViewOperatorRayCast(bpy.types.Operator):
 
     def invoke(self, context, event):
         if context.space_data.type == 'VIEW_3D':
+            self.object = context.object
             self.tree = BVHTree.FromObject(context.object, context.evaluated_depsgraph_get())
             self.bmesh = bmesh.from_edit_mesh(context.object.data)
+            self.initial_vertices = [v for v in self.bmesh.verts if v.select]
             context.window_manager.modal_handler_add(self)
             self.draw_start(context)
             return {'RUNNING_MODAL'}
