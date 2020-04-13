@@ -3,7 +3,7 @@ from bpy_extras import view3d_utils
 from mathutils.bvhtree import BVHTree
 import bmesh
 import gpu
-#import numpy as np
+import numpy as np
 #from random import random
 from gpu_extras.batch import batch_for_shader
 #import time
@@ -88,6 +88,18 @@ def main(context, event, tree, bmesh):
     #     best_original = best_obj.original
     #     best_original.select_set(True)
     #     context.view_layer.objects.active = best_original
+def vertex_project(point, edge):
+    v1, v2 = [v.co for v in edge.verts]
+    ap = point - v1
+    ab = v2 - v1
+    temp = ab * (np.dot(ap,ab) / np.dot(ab,ab))
+    print(temp, v1, ab)
+    result = v1 + temp 
+    d1 = (v1 - result).length
+    d2 = (v2 - result).length
+    a = ab.length
+    result = result if abs(d1 + d2 - a) < 0.01 else edge.verts[0] if d1 < d2 else edge.verts[1]
+    return result
 
 # returns distance_to_edge, distance_to_closest_vert, index_of_closest_vert
 def distance_to_edge(point, edge):
@@ -156,6 +168,8 @@ class ViewOperatorRayCast(bpy.types.Operator):
 
         self.shader.bind()
         self.shader.uniform_float("color", (1, 0, 0, 1))
+#        bgl.glBegin(bgl.GL_POINTS)
+        bgl.glPointSize(12)
         self.batch.draw(self.shader)
 
     def modal(self, context, event):
@@ -166,7 +180,13 @@ class ViewOperatorRayCast(bpy.types.Operator):
             hit, face = main(context, event, self.tree, self.bmesh)
             if hit:
                 vert, edge, edge_dist, vert_dist = self.find_closest(hit, face)
-                self.batch = self.batch_vertices([vert])
+                new_vert = vertex_project(hit, edge)
+                if type(new_vert) != bmesh.types.BMVert:
+                    v = self.bmesh.vertices.new()
+                    v.co = new_vert
+                    new_vert = v
+                
+                self.batch = self.batch_vertices([new_vert])
             else:
                 self.batch = self.batch_vertices([])
             self.redraw()
