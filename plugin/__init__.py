@@ -48,29 +48,48 @@ def distance_to_edge(point, edge):
     d, index = (d1, 0) if d1 < d2 else (d2, 1)
     return min(h, d1, d2), d, index
 
+def find_closest(point, face):
+    if not point:
+        return None, None, None, None
+
+    edge_dist = float("inf")
+    vert_dist = float("inf")
+    edge = None
+    vert = None
+    for e in face.edges:
+        d, vd, i = distance_to_edge(point, e)
+        if d < edge_dist:
+            edge_dist = d
+            edge = e
+            vert = e.verts[i]
+            vert_dist = vd
+
+    return vert, edge, edge_dist, vert_dist
+
 class ViewOperatorRayCast(bpy.types.Operator):
     """Modal object selection with a ray cast"""
     bl_idname = "view3d.modal_operator_raycast"
     bl_label = "RayCast View Operator"
     bl_options = {'REGISTER', 'UNDO'}
 
-    def find_closest(self, point, face):
-        if not point:
-            return None, None, None, None
+    def snap_edge_preivew(self, hit, edge):
+        new_vert, split_ratio = vertex_project(hit, edge)
+        self.split_ratio = split_ratio
+        self.edge = edge
+        # if no need to create new vertex
+        if split_ratio in [0, 1]:
+            new_vert = new_vert.co
 
-        edge_dist = float("inf")
-        vert_dist = float("inf")
-        edge = None
-        vert = None
-        for e in face.edges:
-            d, vd, i = distance_to_edge(point, e)
-            if d < edge_dist:
-                edge_dist = d
-                edge = e
-                vert = e.verts[i]
-                vert_dist = vd
+        new_egdes = [{"verts": [{"co": v.co},
+        {"co": new_vert}]
+        } for v in self.initial_vertices]
 
-        return vert, edge, edge_dist, vert_dist
+        return {
+            'edge': new_egdes,
+            'vert': [new_vert]
+        }
+
+
 
     def run_cut(self):
 #        v = self.bmesh.verts.new()
@@ -94,22 +113,11 @@ class ViewOperatorRayCast(bpy.types.Operator):
         elif event.type == 'MOUSEMOVE':
             hit, face = ray_cast.BVH_ray_cast(context, event, self.tree, self.bmesh)
             if hit:
-                vert, edge, edge_dist, vert_dist = self.find_closest(hit, face)
-                new_vert, split_ratio = vertex_project(hit, edge)
-                self.split_ratio = split_ratio
-                self.edge = edge
-                # if no need to create new vertex
-                if split_ratio in [0, 1]:
-                    new_vert = new_vert.co
+                vert, edge, edge_dist, vert_dist = find_closest(hit, face)
 
-                new_egdes = [{"verts": [{"co": v.co},
-                {"co": new_vert}]
-                } for v in self.initial_vertices]
+                batch = self.snap_edge_preivew(hit, edge)
 
-                self.draw.batch({
-                    'edge': new_egdes,
-                    'vert': [new_vert]
-                })
+                self.draw.batch(batch)
             else:
                 self.draw.clear()
             self.draw.redraw()
