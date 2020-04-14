@@ -69,10 +69,16 @@ def find_closest(point, face):
     return vert, edge, edge_dist, vert_dist
 
 class ViewOperatorRayCast(bpy.types.Operator):
-    """Modal object selection with a ray cast"""
-    bl_idname = "view3d.modal_operator_raycast"
-    bl_label = "RayCast View Operator"
+    """Run half knife"""
+    bl_idname = "view3d.half_knife_operator"
+    bl_label = "Half knife"
     bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return (context.space_data.type == 'VIEW_3D'
+            and len(context.selected_objects) > 0
+            and context.object.mode == 'EDIT')
 
     def get_drawing_edges(self, hit):
         return [{"verts": [{"co": v.co},
@@ -127,17 +133,18 @@ class ViewOperatorRayCast(bpy.types.Operator):
         bmesh.update_edit_mesh(self.object.data, True)
         vert.select_set(True)
         self.bmesh.select_history.add(vert)
-        
-        #dirty hack to prevent bug
-        bpy.ops.object.editmode_toggle()
-        bpy.ops.object.editmode_toggle()
+
 
     def modal(self, context, event):
         if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
             # allow navigation
             return {'PASS_THROUGH'}
         elif event.type == 'MOUSEMOVE':
-            hit, face = ray_cast.BVH_ray_cast(context, event, self.tree, self.bmesh)
+            try:
+                hit, face = ray_cast.BVH_ray_cast(context, event, self.tree, self.bmesh)
+            except:
+                hit = None
+
             if hit:
                 vert, edge, edge_dist, vert_dist = find_closest(hit, face)
                 snap_distance = 0.3
@@ -164,18 +171,16 @@ class ViewOperatorRayCast(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def invoke(self, context, event):
-        if context.space_data.type == 'VIEW_3D':
-            self.object = context.object
-            self.tree = BVHTree.FromObject(context.object, context.evaluated_depsgraph_get())
-            self.bmesh = bmesh.from_edit_mesh(context.object.data)
-            self.initial_vertices = [v for v in self.bmesh.verts if v.select]
-            self.draw = draw.Draw(context, context.object.matrix_world)
-            context.window_manager.modal_handler_add(self)
-            self.draw.draw_start()
-            return {'RUNNING_MODAL'}
-        else:
-            self.report({'WARNING'}, "Active space must be a View3d")
-            return {'CANCELLED'}
+        self.context = context
+        self.object = context.edit_object
+
+        self.bmesh = bmesh.from_edit_mesh(self.object.data)
+        self.tree = BVHTree.FromBMesh(self.bmesh)
+        self.initial_vertices = [v for v in self.bmesh.verts if v.select]
+        self.draw = draw.Draw(context, context.object.matrix_world)
+        context.window_manager.modal_handler_add(self)
+        self.draw.draw_start()
+        return {'RUNNING_MODAL'}
 
 
 def register():
