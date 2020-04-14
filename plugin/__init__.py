@@ -1,8 +1,10 @@
 if "bpy" in locals():
     import importlib
     importlib.reload(ray_cast)
+    importlib.reload(draw)
 else:
     from . import ray_cast
+    from . import draw
 
 import bpy
 from bpy_extras import view3d_utils
@@ -16,50 +18,6 @@ from gpu_extras.batch import batch_for_shader
 import mathutils
 import bgl
 import math
-
-
-
-def main(context, event, tree, bmesh):
-    """Run this function on left mouse, execute the ray cast"""
-    # get the context arguments
-    scene = context.scene
-    region = context.region
-    rv3d = context.region_data
-    coord = event.mouse_region_x, event.mouse_region_y
-
-    # get the ray from the viewport and mouse
-    view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
-    ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
-
-    ray_target = ray_origin + view_vector
-
-    # my_tree0 = BVHTree.FromObject(context.object, context.evaluated_depsgraph_get())
-
-    def obj_ray_cast(matrix):
-        """Wrapper for ray casting that moves the ray into object space"""
-
-        # get the ray relative to the object
-        matrix_inv = matrix.inverted()
-        ray_origin_obj = matrix_inv @ ray_origin
-        ray_target_obj = matrix_inv @ ray_target
-        ray_direction_obj = ray_target_obj - ray_origin_obj
-
-        # cast the ray
-#        success, location, normal, face_index = obj.ray_cast(ray_origin_obj, ray_direction_obj)
-        location, normal, face_index, distance = tree.ray_cast(ray_origin_obj, ray_direction_obj)
-
-#        print(face_index)
-        if location:
-            return location, normal, face_index
-        else:
-            return None, None, None
-
-    matrix = context.object.matrix_world
-    hit, normal, face_index = obj_ray_cast(matrix)
-    if hit is None:
-        return None, None
-
-    return hit, bmesh.faces[face_index]
 
 def vertex_project(point, edge):
     v1, v2 = [v.co for v in edge.verts]
@@ -96,21 +54,6 @@ class ViewOperatorRayCast(bpy.types.Operator):
     bl_label = "RayCast View Operator"
     bl_options = {'REGISTER', 'UNDO'}
 
-    shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
-
-
-    def batch_polygon(self, face):
-
-
-        vertices = [v.co for v in face.verts] if face else []
-        indices = mathutils.geometry.tessellate_polygon((vertices,))
-        return batch_for_shader(
-            self.shader, 'TRIS',
-            {"pos": vertices},
-            indices=indices,
-        )
-
-
     def find_closest(self, point, face):
         if not point:
             return None, None, None, None
@@ -128,32 +71,6 @@ class ViewOperatorRayCast(bpy.types.Operator):
                 vert_dist = vd
 
         return vert, edge, edge_dist, vert_dist
-
-    def batch_vertices(self, vertices):
-        matrix = self.object.matrix_world
-        vertices = [matrix @ v for v in vertices]
-        return batch_for_shader(self.shader, 'POINTS', {"pos": vertices})
-
-    def batch_edges(self, edges):
-#       vertex coordinates in edges
-        matrix = self.object.matrix_world
-        coords = [matrix @ v['co'] for e in edges for v in e['verts']]
-
-#        shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
-        return batch_for_shader(self.shader, 'LINES', {"pos": coords})
-
-    def _draw(self):
-#        if not self.batch:
-#            return
-        bgl.glLineWidth(3)
-
-        self.shader.bind()
-        self.shader.uniform_float("color", (1, 0, 0, 1))
-#        bgl.glBegin(bgl.GL_POINTS)
-        bgl.glPointSize(12)
-        self.batch_new_vertices.draw(self.shader)
-        self.shader.uniform_float("color", (0, 1, 0, 1))
-        self.batch_new_edges.draw(self.shader)
 
     def run_cut(self):
 #        v = self.bmesh.verts.new()
@@ -188,36 +105,24 @@ class ViewOperatorRayCast(bpy.types.Operator):
                 new_egdes = [{"verts": [{"co": v.co},
                 {"co": new_vert}]
                 } for v in self.initial_vertices]
-                print(new_egdes)
-#
-#
-#                    new_vert = v
-                # self.new_vert = new_vert
-                self.batch_new_vertices = self.batch_vertices([new_vert])
-                self.batch_new_edges = self.batch_edges(new_egdes)
+
+                self.draw.batch({
+                    'edge': new_egdes,
+                    'vert': [new_vert]
+                })
             else:
-                self.batch_new_edges = self.batch_vertices([])
-                self.batch_new_vertices = self.batch_vertices([])
-            self.redraw()
+                self.draw.clear()
+            self.draw.redraw()
             return {'RUNNING_MODAL'}
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
-            self.draw_end()
+            self.draw.draw_end()
             return {'CANCELLED'}
         elif event.type in {'LEFTMOUSE'}:
-            self.draw_end()
+            self.draw.draw_end()
             self.run_cut()
             return {'FINISHED'}
 
         return {'RUNNING_MODAL'}
-
-    def draw_start(self, context):
-#        args = (self, context)
-        self._handle = bpy.types.SpaceView3D.draw_handler_add(self._draw, (), 'WINDOW', 'POST_VIEW')
-        self.redraw = context.area.tag_redraw
-
-    def draw_end(self):
-        bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
-        self.redraw()
 
     def invoke(self, context, event):
         if context.space_data.type == 'VIEW_3D':
@@ -225,8 +130,9 @@ class ViewOperatorRayCast(bpy.types.Operator):
             self.tree = BVHTree.FromObject(context.object, context.evaluated_depsgraph_get())
             self.bmesh = bmesh.from_edit_mesh(context.object.data)
             self.initial_vertices = [v for v in self.bmesh.verts if v.select]
+            self.draw = draw.Draw(context, context.object.matrix_world)
             context.window_manager.modal_handler_add(self)
-            self.draw_start(context)
+            self.draw.draw_start()
             return {'RUNNING_MODAL'}
         else:
             self.report({'WARNING'}, "Active space must be a View3d")
