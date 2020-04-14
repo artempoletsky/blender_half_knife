@@ -160,7 +160,7 @@ class ViewOperatorRayCast(bpy.types.Operator):
 
     def batch_edges(self, edges):
 #       vertex coordinates in edges
-        coords = [v.co for e in edges for v in e.verts]
+        coords = [v['co'] for e in edges for v in e['verts']]
 
 #        shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
         return batch_for_shader(self.shader, 'LINES', {"pos": coords})
@@ -174,16 +174,21 @@ class ViewOperatorRayCast(bpy.types.Operator):
         self.shader.uniform_float("color", (1, 0, 0, 1))
 #        bgl.glBegin(bgl.GL_POINTS)
         bgl.glPointSize(12)
-        self.batch.draw(self.shader)
+        self.batch_new_vertices.draw(self.shader)
+        self.shader.uniform_float("color", (0, 1, 0, 1))
+        self.batch_new_edges.draw(self.shader)
 
     def run_cut(self):
 #        v = self.bmesh.verts.new()
 #        v.co = self.new_vert
         edge, vert = bmesh.utils.edge_split(self.edge, self.edge.verts[0], self.split_ratio)
+        pairs = []
         for v in self.initial_vertices:
             v.select_set(False)
-        self.initial_vertices.append(vert)
-        bmesh.ops.connect_vert_pair(self.bmesh, verts = self.initial_vertices)
+#        self.initial_vertices.append(vert)
+            bmesh.ops.connect_vert_pair(self.bmesh, verts = (v, vert))
+#            bmesh.ops.connect_verts(self.bmesh, verts = (v, vert))
+            
         bmesh.update_edit_mesh(self.object.data, True)
         vert.select_set(True)
         self.bmesh.select_history.add(vert)
@@ -202,13 +207,20 @@ class ViewOperatorRayCast(bpy.types.Operator):
                 # if no need to create new vertex
                 if split_ratio in [0, 1]:
                     new_vert = new_vert.co
+                    
+                new_egdes = [{"verts": [{"co": v.co}, 
+                {"co": new_vert}]
+                } for v in self.initial_vertices]
+                print(new_egdes)
 #
 #
 #                    new_vert = v
                 # self.new_vert = new_vert
-                self.batch = self.batch_vertices([new_vert])
+                self.batch_new_vertices = self.batch_vertices([new_vert])
+                self.batch_new_edges = self.batch_edges(new_egdes)
             else:
-                self.batch = self.batch_vertices([])
+                self.batch_new_edges = self.batch_vertices([])
+                self.batch_new_vertices = self.batch_vertices([])
             self.redraw()
             return {'RUNNING_MODAL'}
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
