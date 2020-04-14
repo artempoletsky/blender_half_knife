@@ -95,6 +95,8 @@ class ViewOperatorRayCast(bpy.types.Operator):
 
     def snap_face_preivew(self, hit, face):
         self.cut_mode = 'FACE'
+        self.face = face
+        self.hit = hit
         return {
             'edge': self.get_drawing_edges(hit),
             'vert': [hit]
@@ -122,6 +124,10 @@ class ViewOperatorRayCast(bpy.types.Operator):
             vert = self.vert
         elif self.cut_mode == 'EDGE':
             edge, vert = bmesh.utils.edge_split(self.edge, self.edge.verts[0], self.split_ratio)
+        else:
+            vert = bmesh.ops.poke(self.bmesh, faces=[self.face])['verts'][0]
+            vert.co = self.hit
+            edges = list(vert.link_edges)
 
         pairs = []
         for v in self.initial_vertices:
@@ -129,6 +135,16 @@ class ViewOperatorRayCast(bpy.types.Operator):
 #        self.initial_vertices.append(vert)
             bmesh.ops.connect_vert_pair(self.bmesh, verts = (v, vert))
 #            bmesh.ops.connect_verts(self.bmesh, verts = (v, vert))
+        if self.cut_mode == 'FACE':
+            edge_len = len(vert.link_edges)
+            new_edges = vert.link_edges
+            dissolved_edges = []
+            for e in new_edges:
+                if not (e.other_vert(vert) in self.initial_vertices) and edge_len > 2:
+                    dissolved_edges.append(e)
+                    edge_len -= 1
+
+            bmesh.ops.dissolve_edges(self.bmesh, edges = dissolved_edges, use_verts = False, use_face_split = False)
 
         bmesh.update_edit_mesh(self.object.data, True)
         vert.select_set(True)
