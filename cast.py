@@ -10,7 +10,8 @@ from gpu_extras.batch import batch_for_shader
 import mathutils
 import bgl
 import math
-
+    
+    
 def main(context, event, tree, bmesh):
     """Run this function on left mouse, execute the ray cast"""
     # get the context arguments
@@ -26,18 +27,6 @@ def main(context, event, tree, bmesh):
     ray_target = ray_origin + view_vector
 
     # my_tree0 = BVHTree.FromObject(context.object, context.evaluated_depsgraph_get())
-
-    def visible_objects_and_duplis():
-        """Loop over (object, matrix) pairs (mesh only)"""
-
-        depsgraph = context.evaluated_depsgraph_get()
-        for dup in depsgraph.object_instances:
-            if dup.is_instance:  # Real dupli instance
-                obj = dup.instance_object
-                yield (obj, dup.matrix_world.copy())
-            else:  # Usual object
-                obj = dup.object
-                yield (obj, obj.matrix_world.copy())
 
     def obj_ray_cast(matrix):
         """Wrapper for ray casting that moves the ray into object space"""
@@ -65,29 +54,6 @@ def main(context, event, tree, bmesh):
 
     return hit, bmesh.faces[face_index]
 
-    # cast rays and find the closest object
-    # best_length_squared = -1.0
-    # best_obj = None
-
-    # for obj, matrix in visible_objects_and_duplis():
-    #     if obj.type == 'MESH':
-    #         hit, normal, face_index = obj_ray_cast(obj, matrix)
-    #         if hit is not None:
-    #             hit_world = matrix @ hit
-    #             scene.cursor.location = hit_world
-    #             length_squared = (hit_world - ray_origin).length_squared
-    #             if best_obj is None or length_squared < best_length_squared:
-    #                 best_length_squared = length_squared
-    #                 best_obj = obj
-
-    # # now we have the object under the mouse cursor,
-    # # we could do lots of stuff but for the example just select.
-    # if best_obj is not None:
-    #     # for selection etc. we need the original object,
-    #     # evaluated objects are not in viewlayer
-    #     best_original = best_obj.original
-    #     best_original.select_set(True)
-    #     context.view_layer.objects.active = best_original
 def vertex_project(point, edge):
     v1, v2 = [v.co for v in edge.verts]
     ap = point - v1
@@ -121,7 +87,8 @@ class ViewOperatorRayCast(bpy.types.Operator):
     """Modal object selection with a ray cast"""
     bl_idname = "view3d.modal_operator_raycast"
     bl_label = "RayCast View Operator"
-
+    bl_options = {'REGISTER', 'UNDO'}
+    
     shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
 
 
@@ -156,12 +123,15 @@ class ViewOperatorRayCast(bpy.types.Operator):
         return vert, edge, edge_dist, vert_dist
 
     def batch_vertices(self, vertices):
+        matrix = self.object.matrix_world
+        vertices = [matrix @ v for v in vertices]
         return batch_for_shader(self.shader, 'POINTS', {"pos": vertices})
 
     def batch_edges(self, edges):
 #       vertex coordinates in edges
-        coords = [v['co'] for e in edges for v in e['verts']]
-
+        matrix = self.object.matrix_world
+        coords = [matrix @ v['co'] for e in edges for v in e['verts']]
+        
 #        shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
         return batch_for_shader(self.shader, 'LINES', {"pos": coords})
 
