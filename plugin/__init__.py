@@ -1,3 +1,9 @@
+if "bpy" in locals():
+    import importlib
+    importlib.reload(ray_cast)
+else:
+    from . import ray_cast
+
 import bpy
 from bpy_extras import view3d_utils
 from mathutils.bvhtree import BVHTree
@@ -10,8 +16,9 @@ from gpu_extras.batch import batch_for_shader
 import mathutils
 import bgl
 import math
-    
-    
+
+
+
 def main(context, event, tree, bmesh):
     """Run this function on left mouse, execute the ray cast"""
     # get the context arguments
@@ -88,7 +95,7 @@ class ViewOperatorRayCast(bpy.types.Operator):
     bl_idname = "view3d.modal_operator_raycast"
     bl_label = "RayCast View Operator"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
 
 
@@ -131,7 +138,7 @@ class ViewOperatorRayCast(bpy.types.Operator):
 #       vertex coordinates in edges
         matrix = self.object.matrix_world
         coords = [matrix @ v['co'] for e in edges for v in e['verts']]
-        
+
 #        shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
         return batch_for_shader(self.shader, 'LINES', {"pos": coords})
 
@@ -158,7 +165,7 @@ class ViewOperatorRayCast(bpy.types.Operator):
 #        self.initial_vertices.append(vert)
             bmesh.ops.connect_vert_pair(self.bmesh, verts = (v, vert))
 #            bmesh.ops.connect_verts(self.bmesh, verts = (v, vert))
-            
+
         bmesh.update_edit_mesh(self.object.data, True)
         vert.select_set(True)
         self.bmesh.select_history.add(vert)
@@ -168,7 +175,7 @@ class ViewOperatorRayCast(bpy.types.Operator):
             # allow navigation
             return {'PASS_THROUGH'}
         elif event.type == 'MOUSEMOVE':
-            hit, face = main(context, event, self.tree, self.bmesh)
+            hit, face = ray_cast.BVH_ray_cast(context, event, self.tree, self.bmesh)
             if hit:
                 vert, edge, edge_dist, vert_dist = self.find_closest(hit, face)
                 new_vert, split_ratio = vertex_project(hit, edge)
@@ -177,8 +184,8 @@ class ViewOperatorRayCast(bpy.types.Operator):
                 # if no need to create new vertex
                 if split_ratio in [0, 1]:
                     new_vert = new_vert.co
-                    
-                new_egdes = [{"verts": [{"co": v.co}, 
+
+                new_egdes = [{"verts": [{"co": v.co},
                 {"co": new_vert}]
                 } for v in self.initial_vertices]
                 print(new_egdes)
