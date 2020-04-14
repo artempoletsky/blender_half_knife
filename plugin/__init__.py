@@ -43,10 +43,10 @@ def distance_to_edge(point, edge):
     d2 = (point - v2).length
     a = (v1 - v2).length
     p = (a + d1 + d2) / 2
-    try:
-        h = (2 / a) * math.sqrt(p * (p - a) * (p - d1) * (p - d2))
-    except:
-        h = float("inf")
+    # try:
+    h = (2 / a) * math.sqrt(abs(p * (p - a) * (p - d1) * (p - d2)))
+    # except:
+        # h = float("inf")
     d, index = (d1, 0) if d1 < d2 else (d2, 1)
     return min(h, d1, d2), d, index
 
@@ -73,20 +73,26 @@ class ViewOperatorRayCast(bpy.types.Operator):
     bl_idname = "view3d.modal_operator_raycast"
     bl_label = "RayCast View Operator"
     bl_options = {'REGISTER', 'UNDO'}
+
+    def get_drawing_edges(self, hit):
+        return [{"verts": [{"co": v.co},
+        {"co": hit}]
+        } for v in self.initial_vertices]
+
     def snap_vert_preivew(self, vert):
         self.cut_mode = 'VERT'
         self.vert = vert
-        new_egdes = [{"verts": [{"co": v.co},
-        {"co": vert.co}]
-        } for v in self.initial_vertices]
-
         return {
-            'edge': new_egdes,
+            'edge': self.get_drawing_edges(vert.co),
             'vert': [vert.co]
         }
 
     def snap_face_preivew(self, hit, face):
-        return {}
+        self.cut_mode = 'FACE'
+        return {
+            'edge': self.get_drawing_edges(hit),
+            'vert': [hit]
+        }
 
     def snap_edge_preivew(self, hit, edge):
         self.cut_mode = 'EDGE'
@@ -96,13 +102,8 @@ class ViewOperatorRayCast(bpy.types.Operator):
         # if no need to create new vertex
         if split_ratio in [0, 1]:
             new_vert = new_vert.co
-
-        new_egdes = [{"verts": [{"co": v.co},
-        {"co": new_vert}]
-        } for v in self.initial_vertices]
-
         return {
-            'edge': new_egdes,
+            'edge': self.get_drawing_edges(new_vert),
             'vert': [new_vert]
         }
 
@@ -126,6 +127,10 @@ class ViewOperatorRayCast(bpy.types.Operator):
         bmesh.update_edit_mesh(self.object.data, True)
         vert.select_set(True)
         self.bmesh.select_history.add(vert)
+        
+        #dirty hack to prevent bug
+        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.editmode_toggle()
 
     def modal(self, context, event):
         if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
