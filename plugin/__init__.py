@@ -24,7 +24,6 @@ def vertex_project(point, edge):
     ap = point - v1
     ab = v2 - v1
     temp = ab * (np.dot(ap,ab) / np.dot(ab,ab))
-    print(temp, v1, ab)
     projected = v1 + temp
     d1 = (v1 - projected).length
     d2 = (v2 - projected).length
@@ -44,7 +43,10 @@ def distance_to_edge(point, edge):
     d2 = (point - v2).length
     a = (v1 - v2).length
     p = (a + d1 + d2) / 2
-    h = (2 / a) * math.sqrt(p * (p - a) * (p - d1) * (p - d2))
+    try:
+        h = (2 / a) * math.sqrt(p * (p - a) * (p - d1) * (p - d2))
+    except:
+        h = float("inf")
     d, index = (d1, 0) if d1 < d2 else (d2, 1)
     return min(h, d1, d2), d, index
 
@@ -71,8 +73,23 @@ class ViewOperatorRayCast(bpy.types.Operator):
     bl_idname = "view3d.modal_operator_raycast"
     bl_label = "RayCast View Operator"
     bl_options = {'REGISTER', 'UNDO'}
+    def snap_vert_preivew(self, vert):
+        self.cut_mode = 'VERT'
+        self.vert = vert
+        new_egdes = [{"verts": [{"co": v.co},
+        {"co": vert.co}]
+        } for v in self.initial_vertices]
+
+        return {
+            'edge': new_egdes,
+            'vert': [vert.co]
+        }
+
+    def snap_face_preivew(self, hit, face):
+        return {}
 
     def snap_edge_preivew(self, hit, edge):
+        self.cut_mode = 'EDGE'
         new_vert, split_ratio = vertex_project(hit, edge)
         self.split_ratio = split_ratio
         self.edge = edge
@@ -94,7 +111,11 @@ class ViewOperatorRayCast(bpy.types.Operator):
     def run_cut(self):
 #        v = self.bmesh.verts.new()
 #        v.co = self.new_vert
-        edge, vert = bmesh.utils.edge_split(self.edge, self.edge.verts[0], self.split_ratio)
+        if self.cut_mode == 'VERT':
+            vert = self.vert
+        elif self.cut_mode == 'EDGE':
+            edge, vert = bmesh.utils.edge_split(self.edge, self.edge.verts[0], self.split_ratio)
+
         pairs = []
         for v in self.initial_vertices:
             v.select_set(False)
@@ -114,8 +135,13 @@ class ViewOperatorRayCast(bpy.types.Operator):
             hit, face = ray_cast.BVH_ray_cast(context, event, self.tree, self.bmesh)
             if hit:
                 vert, edge, edge_dist, vert_dist = find_closest(hit, face)
-
-                batch = self.snap_edge_preivew(hit, edge)
+                snap_distance = 0.3
+                if vert_dist < snap_distance:
+                    batch = self.snap_vert_preivew(vert)
+                elif edge_dist < snap_distance:
+                    batch = self.snap_edge_preivew(hit, edge)
+                else:
+                    batch = self.snap_face_preivew(hit, face)
 
                 self.draw.batch(batch)
             else:
