@@ -68,9 +68,9 @@ def find_closest(point, face):
 
     return vert, edge, edge_dist, vert_dist
 
-class ViewOperatorRayCast(bpy.types.Operator):
+class HalfKnifeOperator(bpy.types.Operator):
     """Run half knife"""
-    bl_idname = "view3d.half_knife_operator"
+    bl_idname = "mesh.half_knife_operator"
     bl_label = "Half knife"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -96,7 +96,6 @@ class ViewOperatorRayCast(bpy.types.Operator):
     def snap_face_preivew(self, hit, face):
         self.cut_mode = 'FACE'
         self.face = face
-        self.hit = hit
         return {
             'edge': self.get_drawing_edges(hit),
             'vert': [hit]
@@ -120,6 +119,9 @@ class ViewOperatorRayCast(bpy.types.Operator):
     def run_cut(self):
 #        v = self.bmesh.verts.new()
 #        v.co = self.new_vert
+        if not self.hit:
+            return
+
         if self.cut_mode == 'VERT':
             vert = self.vert
         elif self.cut_mode == 'EDGE':
@@ -160,9 +162,10 @@ class ViewOperatorRayCast(bpy.types.Operator):
                 hit, face = ray_cast.BVH_ray_cast(context, event, self.tree, self.bmesh)
             except:
                 hit = None
-
+            self.hit = hit
             if hit:
                 vert, edge, edge_dist, vert_dist = find_closest(hit, face)
+
                 snap_distance = 0.3
                 if vert_dist < snap_distance:
                     batch = self.snap_vert_preivew(vert)
@@ -200,11 +203,11 @@ class ViewOperatorRayCast(bpy.types.Operator):
 
 
 def register():
-    bpy.utils.register_class(ViewOperatorRayCast)
+    bpy.utils.register_class(HalfKnifeOperator)
 
 
 def unregister():
-    bpy.utils.unregister_class(ViewOperatorRayCast)
+    bpy.utils.unregister_class(HalfKnifeOperator)
 
 
 if __name__ == "__main__":
