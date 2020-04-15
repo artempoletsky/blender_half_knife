@@ -2,7 +2,9 @@ if "bpy" in locals():
     import importlib
     importlib.reload(ray_cast)
     importlib.reload(draw)
+    Draw = draw.Draw
     importlib.reload(geometry_math)
+    GeometryMath = geometry_math.GeometryMath
 else:
     from . import ray_cast
     from .draw import Draw
@@ -60,16 +62,17 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.cut_mode = 'VERT'
         self.vert = vert
         return {
-            'edge': self.get_drawing_edges(vert.co),
-            'vert': [vert.co]
+            'edge': [(self.get_drawing_edges(vert.co), (0, 1, 0, 1))],
+            'vert': [([vert.co], (1, 0, 0, 1))]
         }
 
     def snap_face_preivew(self, hit, face):
         self.cut_mode = 'FACE'
         self.face = face
         return {
-            'edge': self.get_drawing_edges(hit),
-            'vert': [hit]
+            'face': [(face, (1, 0, 0, .5))],
+            'edge': [(self.get_drawing_edges(hit), (0, 1, 0, 1))],
+            'vert': [([hit], (1, 0, 0, 1))]
         }
 
     def snap_edge_preivew(self, hit, edge, projected, split_ratio):
@@ -80,8 +83,8 @@ class HalfKnifeOperator(bpy.types.Operator):
         if split_ratio in [0, 1]:
             projected = projected.co
         return {
-            'edge': self.get_drawing_edges(projected),
-            'vert': [projected]
+            'edge': [(self.get_drawing_edges(projected), (0, 1, 0, 1))],
+            'vert': [([projected], (1, 0, 0, 1))]
         }
 
 
@@ -138,7 +141,6 @@ class HalfKnifeOperator(bpy.types.Operator):
                 vert, edge, vertex_pixel_distance, edge_pixel_distance, split_ratio, projected = self.util.find_closest(hit, face)
 
                 snap_distance = 15
-                print(vertex_pixel_distance)
                 if vertex_pixel_distance < snap_distance:
                     batch = self.snap_vert_preivew(vert)
                 elif edge_pixel_distance < snap_distance:

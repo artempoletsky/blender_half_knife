@@ -45,20 +45,38 @@ class Draw:
     def clear(self):
         self.batches = []
 
+    # def map_to_color(self, elems):
+    #     colors = []
+    #     result = []
+    #     color_index = 0
+    #     for e, color in val:
+    #         if color in colors:
+    #             color_index = colors.index(color)
+    #             result[i].append(e)
+    #         else:
+    #             color_index = len(colors)
+    #             colors.append(color)
+    #             result.append([e])
+    #     return colors, result
+
     def batch(self, dict):
         self.batches = []
         for key, val in dict.items():
             if key == 'face':
-                self.batches.append((self.batch_polygon(val), (1, 0, 0, 1)))
+                for t in val:
+                    self.batches.append((self.batch_polygon(t[0]), t[1]))
             elif key == 'edge':
-                self.batches.append((self.batch_edges(val), (0, 1, 0, 1)))
+                for t in val:
+                    self.batches.append((self.batch_edges(t[0]), t[1]))
             elif key == 'vert':
-                self.batches.append((self.batch_vertices(val), (1, 0, 0, 1)))
+                for t in val:
+                    self.batches.append((self.batch_vertices(t[0]), t[1]))
 
     def _draw(self):
 #        if not self.batch:
 #            return
         self.shader.bind()
+        bgl.glEnable(bgl.GL_BLEND)
         bgl.glLineWidth(3)
         bgl.glPointSize(12)
         for b, color in self.batches:
