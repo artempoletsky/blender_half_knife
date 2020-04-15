@@ -41,6 +41,9 @@ def find_closest(point, face):
 
     return vert, edge, edge_dist, vert_dist
 
+def edge_to_dict(edge):
+    return {"verts": [{"co": edge.verts[0].co}, {"co": edge.verts[1].co}]}
+
 class HalfKnifeOperator(bpy.types.Operator):
     """Run half knife"""
     bl_idname = "mesh.half_knife_operator"
@@ -63,7 +66,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.vert = vert
         return {
             'edge': [(self.get_drawing_edges(vert.co), (0, 1, 0, 1))],
-            'vert': [([vert.co], (1, 0, 0, 1))]
+            'vert': [([vert.co], (0, 0, 1, 1))]
         }
 
     def snap_face_preivew(self, hit, face):
@@ -83,7 +86,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         if split_ratio in [0, 1]:
             projected = projected.co
         return {
-            'edge': [(self.get_drawing_edges(projected), (0, 1, 0, 1))],
+            'edge': [(self.get_drawing_edges(projected), (0, 1, 0, 1)), ([edge_to_dict(edge)], (1, 1, 0, 1))],
             'vert': [([projected], (1, 0, 0, 1))]
         }
 
