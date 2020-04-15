@@ -136,29 +136,34 @@ class HalfKnifeOperator(bpy.types.Operator):
         vert.select_set(True)
         self.bmesh.select_history.add(vert)
 
+    def calc_hit(self, context, event):
+        batch = None
+        try:
+            hit, face = ray_cast.BVH_ray_cast(context, event, self.tree, self.bmesh)
+        except:
+            hit = None
+        self.hit = hit
+        if hit:
+            vert, edge, vertex_pixel_distance, edge_pixel_distance, split_ratio, projected = self.util.find_closest(hit, face)
+
+            snap_distance = 15
+            if vertex_pixel_distance < snap_distance:
+                batch = self.snap_vert_preivew(vert)
+            elif edge_pixel_distance < snap_distance:
+                batch = self.snap_edge_preivew(hit, edge, projected, split_ratio)
+            else:
+                batch = self.snap_face_preivew(hit, face)
+
+        return batch
 
     def modal(self, context, event):
         if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
             # allow navigation
             return {'PASS_THROUGH'}
         elif event.type == 'MOUSEMOVE':
-            try:
-                hit, face = ray_cast.BVH_ray_cast(context, event, self.tree, self.bmesh)
-            except:
-                hit = None
-            self.hit = hit
-            if hit:
 
-                vert, edge, vertex_pixel_distance, edge_pixel_distance, split_ratio, projected = self.util.find_closest(hit, face)
-
-                snap_distance = 15
-                if vertex_pixel_distance < snap_distance:
-                    batch = self.snap_vert_preivew(vert)
-                elif edge_pixel_distance < snap_distance:
-                    batch = self.snap_edge_preivew(hit, edge, projected, split_ratio)
-                else:
-                    batch = self.snap_face_preivew(hit, face)
-
+            batch = self.calc_hit(context, event)
+            if batch:
                 self.draw.batch(batch)
             else:
                 self.draw.clear()
@@ -168,6 +173,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             self.draw.draw_end()
             return {'CANCELLED'}
         elif event.type in {'LEFTMOUSE'}:
+            self.calc_hit(context, event)
             self.draw.draw_end()
             self.run_cut()
             return {'FINISHED'}
