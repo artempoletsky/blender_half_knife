@@ -2,9 +2,11 @@ if "bpy" in locals():
     import importlib
     importlib.reload(ray_cast)
     importlib.reload(draw)
+    importlib.reload(geometry_math)
 else:
     from . import ray_cast
-    from . import draw
+    from .draw import Draw
+    from .geometry_math import GeometryMath
 
 import bpy
 from bpy_extras import view3d_utils
@@ -18,37 +20,6 @@ from gpu_extras.batch import batch_for_shader
 import mathutils
 import bgl
 import math
-
-def vertex_project(point, edge):
-    v1, v2 = [v.co for v in edge.verts]
-    ap = point - v1
-    ab = v2 - v1
-    temp = ab * (np.dot(ap,ab) / np.dot(ab,ab))
-    projected = v1 + temp
-    d1 = (v1 - projected).length
-    d2 = (v2 - projected).length
-    a = ab.length
-    # projected = projected if abs(d1 + d2 - a) < 0.001 else edge.verts[0] if d1 < d2 else edge.verts[1]
-    split_ratio = 0
-    if (abs(d1 + d2 - a) < 0.001):
-        split_ratio = d1 / a
-    else:
-        projected, split_ratio = (edge.verts[0], 0) if d1 < d2 else (edge.verts[1], 1)
-    return projected, split_ratio
-
-# returns distance_to_edge, distance_to_closest_vert, index_of_closest_vert
-def distance_to_edge(point, edge):
-    v1, v2 = [v.co for v in edge.verts]
-    d1 = (point - v1).length
-    d2 = (point - v2).length
-    a = (v1 - v2).length
-    p = (a + d1 + d2) / 2
-    # try:
-    h = (2 / a) * math.sqrt(abs(p * (p - a) * (p - d1) * (p - d2)))
-    # except:
-        # h = float("inf")
-    d, index = (d1, 0) if d1 < d2 else (d2, 1)
-    return min(h, d1, d2), d, index
 
 def find_closest(point, face):
     if not point:
@@ -101,17 +72,16 @@ class HalfKnifeOperator(bpy.types.Operator):
             'vert': [hit]
         }
 
-    def snap_edge_preivew(self, hit, edge):
+    def snap_edge_preivew(self, hit, edge, projected, split_ratio):
         self.cut_mode = 'EDGE'
-        new_vert, split_ratio = vertex_project(hit, edge)
         self.split_ratio = split_ratio
         self.edge = edge
         # if no need to create new vertex
         if split_ratio in [0, 1]:
-            new_vert = new_vert.co
+            projected = projected.co
         return {
-            'edge': self.get_drawing_edges(new_vert),
-            'vert': [new_vert]
+            'edge': self.get_drawing_edges(projected),
+            'vert': [projected]
         }
 
 
@@ -164,13 +134,15 @@ class HalfKnifeOperator(bpy.types.Operator):
                 hit = None
             self.hit = hit
             if hit:
-                vert, edge, edge_dist, vert_dist = find_closest(hit, face)
 
-                snap_distance = 0.3
-                if vert_dist < snap_distance:
+                vert, edge, vertex_pixel_distance, edge_pixel_distance, split_ratio, projected = self.util.find_closest(hit, face)
+
+                snap_distance = 15
+                print(vertex_pixel_distance)
+                if vertex_pixel_distance < snap_distance:
                     batch = self.snap_vert_preivew(vert)
-                elif edge_dist < snap_distance:
-                    batch = self.snap_edge_preivew(hit, edge)
+                elif edge_pixel_distance < snap_distance:
+                    batch = self.snap_edge_preivew(hit, edge, projected, split_ratio)
                 else:
                     batch = self.snap_face_preivew(hit, face)
 
@@ -196,9 +168,11 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.bmesh = bmesh.from_edit_mesh(self.object.data)
         self.tree = BVHTree.FromBMesh(self.bmesh)
         self.initial_vertices = [v for v in self.bmesh.verts if v.select]
-        self.draw = draw.Draw(context, context.object.matrix_world)
+        self.draw = Draw(context, context.object.matrix_world)
         context.window_manager.modal_handler_add(self)
         self.draw.draw_start()
+
+        self.util = GeometryMath(context)
         return {'RUNNING_MODAL'}
 
 
