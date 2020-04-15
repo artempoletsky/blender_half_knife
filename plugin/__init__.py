@@ -23,6 +23,14 @@ import mathutils
 import bgl
 import math
 
+user_prefs = bpy.context.preferences.themes[0].view_3d
+COLORS = {
+    "cutting_edge": tuple(user_prefs.nurb_vline) + (1,),
+    "vertex": tuple(user_prefs.handle_sel_vect) + (1,),
+    "vertex_snap": tuple(user_prefs.handle_sel_auto) + (1,),
+    "edge_snap": tuple(user_prefs.handle_sel_auto) + (1,),
+}
+
 def find_closest(point, face):
     if not point:
         return None, None, None, None
@@ -65,17 +73,17 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.cut_mode = 'VERT'
         self.vert = vert
         return {
-            'edge': [(self.get_drawing_edges(vert.co), (0, 1, 0, 1))],
-            'vert': [([vert.co], (0, 0, 1, 1))]
+            'edge': [(self.get_drawing_edges(vert.co), COLORS['cutting_edge'])],
+            'vert': [([vert.co], COLORS['vertex_snap'])]
         }
 
     def snap_face_preivew(self, hit, face):
         self.cut_mode = 'FACE'
         self.face = face
         return {
-            'face': [(face, (1, 0, 0, .5))],
-            'edge': [(self.get_drawing_edges(hit), (0, 1, 0, 1))],
-            'vert': [([hit], (1, 0, 0, 1))]
+            # 'face': [(face, (1, 0, 0, .5))],
+            'edge': [(self.get_drawing_edges(hit), COLORS['cutting_edge'])],
+            'vert': [([hit], COLORS['vertex'])]
         }
 
     def snap_edge_preivew(self, hit, edge, projected, split_ratio):
@@ -86,8 +94,8 @@ class HalfKnifeOperator(bpy.types.Operator):
         if split_ratio in [0, 1]:
             projected = projected.co
         return {
-            'edge': [(self.get_drawing_edges(projected), (0, 1, 0, 1)), ([edge_to_dict(edge)], (1, 1, 0, 1))],
-            'vert': [([projected], (1, 0, 0, 1))]
+            'edge': [(self.get_drawing_edges(projected), COLORS['cutting_edge']), ([edge_to_dict(edge)], COLORS['edge_snap'])],
+            'vert': [([projected], COLORS['vertex'])]
         }
 
 
