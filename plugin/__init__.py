@@ -52,6 +52,14 @@ def find_closest(point, face):
 def edge_to_dict(edge):
     return {"verts": [{"co": edge.verts[0].co}, {"co": edge.verts[1].co}]}
 
+def find_shared_edge(v1, v2):
+    e1 = list(v1.link_edges)
+    e2 = list(v2.link_edges)
+    for e in e1:
+        if e in e2:
+            return e
+    return None
+
 class HalfKnifeOperator(bpy.types.Operator):
     """Run half knife"""
     bl_idname = "mesh.half_knife_operator"
@@ -106,6 +114,8 @@ class HalfKnifeOperator(bpy.types.Operator):
         if not self.hit:
             return
 
+        bm = self.bmesh
+
         if self.cut_mode == 'VERT':
             vert = self.vert
         elif self.cut_mode == 'EDGE':
@@ -119,8 +129,41 @@ class HalfKnifeOperator(bpy.types.Operator):
         for v in self.initial_vertices:
             v.select_set(False)
 #        self.initial_vertices.append(vert)
-            bmesh.ops.connect_vert_pair(self.bmesh, verts = (v, vert))
-#            bmesh.ops.connect_verts(self.bmesh, verts = (v, vert))
+            normal = mathutils.geometry.normal([v.co, vert.co, self.camera_origin])
+            bm.verts.ensure_lookup_table()
+            # plane_co = (v.co + vert.co) / 2
+            # hidden_verts = []
+            # for v1 in bm.verts:
+            #     if (mathutils.geometry.distance_point_to_plane(v1.co, v.co, self.camera_origin) < -0.1 and
+            #         mathutils.geometry.distance_point_to_plane(v1.co, vert.co, self.camera_origin) < -0.1):
+            #         hidden_verts.append(v1)
+            #         v1.hide_set(True)
+
+            visible_geom = [g for g in bm.faces[:]
+                            + bm.verts[:] + bm.edges[:] if not g.hide]
+
+
+             # bmesh.ops.bisect_plane(bm, geom, dist, plane_co, plane_no, use_snap_center, clear_outer, clear_inner)
+            bisect_result = bmesh.ops.bisect_plane(bm, geom = visible_geom, dist = 0.0001, plane_co = v.co, plane_no = normal, use_snap_center = False, clear_outer = False, clear_inner = False)
+
+
+            # print(result['geom'])
+            bisect_edges = list(filter(lambda g: type(g) == bmesh.types.BMEdge, bisect_result['geom_cut']))
+
+            v.select_set(True)
+            vert.select_set(True)
+            bpy.ops.mesh.shortest_path_select(edge_mode = 'SELECT')
+            dissolved_edges = list(filter(lambda e: not e.select and (not vert in e.verts or self.cut_mode != 'FACE'), bisect_edges))
+            shared = find_shared_edge(v, vert)
+            # self.select_only([shared])
+            if shared:
+                dissolved_edges.remove(shared)
+            # self.select_only(dissolved_edges)
+            bmesh.ops.dissolve_edges(bm, edges = dissolved_edges, use_verts = True, use_face_split = False)
+
+            # for v1 in hidden_verts:
+                # v1.hide_set(False)
+
         if self.cut_mode == 'FACE':
             edge_len = len(vert.link_edges)
             new_edges = vert.link_edges
@@ -130,11 +173,24 @@ class HalfKnifeOperator(bpy.types.Operator):
                     dissolved_edges.append(e)
                     edge_len -= 1
 
-            bmesh.ops.dissolve_edges(self.bmesh, edges = dissolved_edges, use_verts = False, use_face_split = False)
+            bmesh.ops.dissolve_edges(bm, edges = dissolved_edges, use_verts = False, use_face_split = False)
+
+
+
+
+        # bmesh.update_edit_mesh(self.object.data, True)
+        # for v in self.initial_vertices:
+
 
         bmesh.update_edit_mesh(self.object.data, True)
+        bpy.ops.mesh.select_all(action = 'DESELECT')
         vert.select_set(True)
-        self.bmesh.select_history.add(vert)
+        bm.select_history.add(vert)
+
+    def select_only(self, bmesh_geom):
+        bpy.ops.mesh.select_all(action = 'DESELECT')
+        for e in bmesh_geom:
+            e.select_set(True)
 
     def calc_hit(self, context, event):
         batch = None
@@ -175,6 +231,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         elif event.type in {'LEFTMOUSE'}:
             self.calc_hit(context, event)
             self.draw.draw_end()
+            self.camera_origin = self.util.get_camera_origin(event)
             self.run_cut()
             return {'FINISHED'}
 
