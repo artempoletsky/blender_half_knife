@@ -61,11 +61,35 @@ class HalfKnifeOperator(bpy.types.Operator):
     bl_label = "Half knife"
     bl_options = {'REGISTER', 'UNDO'}
 
+    auto_cut: bpy.props.BoolProperty(name="Cut without preview", default=False)
+
     @classmethod
     def poll(cls, context):
         return (context.space_data.type == 'VIEW_3D'
             and len(context.selected_objects) > 0
             and context.object.mode == 'EDIT')
+
+    def get_new_vert(self):
+        if self.snap_mode == 'VERT':
+            return self.vert
+        elif self.snap_mode == 'EDGE':
+            edge, vert = bmesh.utils.edge_split(self.edge, self.edge.verts[0], self.split_ratio)
+            return vert
+        else:
+            vert = bmesh.ops.poke(self.bmesh, faces=[self.face])['verts'][0]
+            vert.co = self.hit
+            return vert
+
+    def addVert(self, context, event):
+        if not self.calc_hit(context, event):
+            return
+        vert = self.get_new_vert()
+        if self.snap_mode == 'FACE':
+            dissolved_edges = vert.link_edges[slice(2)]
+            bmesh.ops.dissolve_edges(self.bmesh, edges = dissolved_edges, use_verts = False, use_face_split = False)
+        bmesh.update_edit_mesh(self.object.data, True)
+        vert.select_set(True)
+        self.bmesh.select_history.add(vert)
 
     def get_drawing_edges(self, hit):
         return [{"verts": [{"co": v.co},
@@ -73,7 +97,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         } for v in self.initial_vertices]
 
     def snap_vert_preivew(self, vert):
-        self.cut_mode = 'VERT'
+        self.snap_mode = 'VERT'
         self.vert = vert
         return {
             'edge': [(self.get_drawing_edges(vert.co), COLORS['cutting_edge'])],
@@ -81,7 +105,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         }
 
     def snap_face_preivew(self, hit, face):
-        self.cut_mode = 'FACE'
+        self.snap_mode = 'FACE'
         self.face = face
         return {
             # 'face': [(face, (1, 0, 0, .5))],
@@ -90,7 +114,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         }
 
     def snap_edge_preivew(self, hit, edge, projected, split_ratio):
-        self.cut_mode = 'EDGE'
+        self.snap_mode = 'EDGE'
         self.split_ratio = split_ratio
         self.edge = edge
         # if no need to create new vertex
@@ -113,9 +137,9 @@ class HalfKnifeOperator(bpy.types.Operator):
 
         bm = self.bmesh
 
-        if self.cut_mode == 'VERT':
+        if self.snap_mode == 'VERT':
             vert = self.vert
-        elif self.cut_mode == 'EDGE':
+        elif self.snap_mode == 'EDGE':
             edge, vert = bmesh.utils.edge_split(self.edge, self.edge.verts[0], self.split_ratio)
 
         else:
@@ -144,13 +168,8 @@ class HalfKnifeOperator(bpy.types.Operator):
             visible_geom = [g for g in bm.faces[:]
                             + bm.verts[:] + bm.edges[:] if not g.hide]
 
-
-             # bmesh.ops.bisect_plane(bm, geom, dist, plane_co, plane_no, use_snap_center, clear_outer, clear_inner)
             bisect_result = bmesh.ops.bisect_plane(bm, geom = visible_geom, dist = 0.0001, plane_co = v.co, plane_no = normal, use_snap_center = False, clear_outer = False, clear_inner = False)
 
-
-
-            # print(result['geom'])
             bisect_edges = list(filter(lambda g: type(g) == bmesh.types.BMEdge, bisect_result['geom_cut']))
 
 
@@ -167,7 +186,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             all_dissolved_edges += dissolved_edges
 
         bmesh.ops.dissolve_edges(bm, edges = all_dissolved_edges, use_verts = True, use_face_split = False)
-        if self.cut_mode == 'FACE':
+        if self.snap_mode == 'FACE':
             edge_len = len(vert.link_edges)
             new_edges = vert.link_edges
             dissolved_edges = []
@@ -245,13 +264,24 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.object = context.edit_object
 
         self.bmesh = bmesh.from_edit_mesh(self.object.data)
-        self.tree = BVHTree.FromBMesh(self.bmesh)
+
         self.initial_vertices = [v for v in self.bmesh.verts if v.select]
+        vert_len = len(self.initial_vertices)
+        if vert_len > 10:
+            self.report({'WARNING'}, 'Too many vertices selected! Canceling.')
+            return {'CANCELLED'}
+
+        self.tree = BVHTree.FromBMesh(self.bmesh)
+        self.util = GeometryMath(context)
+
+        if vert_len == 0:
+            self.addVert(context, event)
+            return {'FINISHED'}
+
         self.draw = Draw(context, context.object.matrix_world)
         context.window_manager.modal_handler_add(self)
         self.draw.draw_start()
 
-        self.util = GeometryMath(context)
         return {'RUNNING_MODAL'}
 
 
