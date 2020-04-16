@@ -1,5 +1,6 @@
 
 from bpy_extras import view3d_utils
+from mathutils import Vector
 
 def BVH_ray_cast(context, event, tree, bmesh):
     """Run this function on left mouse, execute the ray cast"""
@@ -42,3 +43,8 @@ def BVH_ray_cast(context, event, tree, bmesh):
         return None, None
 
     return hit, bmesh.faces[face_index]
+
+def get_view_vector(context):
+    camera = context.space_data.camera
+    cam_direction = camera.matrix_world.to_quaternion() @ Vector((0.0, 0.0, -1.0))
+    return cam_direction

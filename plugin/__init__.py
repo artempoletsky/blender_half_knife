@@ -31,24 +31,6 @@ COLORS = {
     "edge_snap": tuple(user_prefs.handle_sel_auto) + (1,),
 }
 
-def find_closest(point, face):
-    if not point:
-        return None, None, None, None
-
-    edge_dist = float("inf")
-    vert_dist = float("inf")
-    edge = None
-    vert = None
-    for e in face.edges:
-        d, vd, i = distance_to_edge(point, e)
-        if d < edge_dist:
-            edge_dist = d
-            edge = e
-            vert = e.verts[i]
-            vert_dist = vd
-
-    return vert, edge, edge_dist, vert_dist
-
 def edge_to_dict(edge):
     return {"verts": [{"co": edge.verts[0].co}, {"co": edge.verts[1].co}]}
 
@@ -59,6 +41,19 @@ def find_shared_edge(v1, v2):
         if e in e2:
             return e
     return None
+
+def find_shared_face(v1, v2):
+    e1 = list(v1.link_faces)
+    e2 = list(v2.link_faces)
+    for e in e1:
+        if e in e2:
+            return e
+    return None
+
+def is_backfacing(face, view_vector):
+    normal = face.normal
+    return np.dot(view_vector, normal) > 0
+
 
 class HalfKnifeOperator(bpy.types.Operator):
     """Run half knife"""
@@ -113,6 +108,8 @@ class HalfKnifeOperator(bpy.types.Operator):
 #        v.co = self.new_vert
         if not self.hit:
             return
+        for v in self.initial_vertices:
+            v.select_set(False)
 
         bm = self.bmesh
 
@@ -120,24 +117,29 @@ class HalfKnifeOperator(bpy.types.Operator):
             vert = self.vert
         elif self.cut_mode == 'EDGE':
             edge, vert = bmesh.utils.edge_split(self.edge, self.edge.verts[0], self.split_ratio)
+
         else:
-            vert = bmesh.ops.poke(self.bmesh, faces=[self.face])['verts'][0]
+            vert = bmesh.ops.poke(bm, faces=[self.face])['verts'][0]
             vert.co = self.hit
             edges = list(vert.link_edges)
 
+        view_vector = ray_cast.get_view_vector(self.context)
         pairs = []
+        all_dissolved_edges = []
         for v in self.initial_vertices:
-            v.select_set(False)
-#        self.initial_vertices.append(vert)
+            shared_face = find_shared_face(v, vert)
+            if shared_face:
+                bmesh.ops.connect_vert_pair(self.bmesh, verts = (v, vert))
+                continue
+
             normal = mathutils.geometry.normal([v.co, vert.co, self.camera_origin])
             bm.verts.ensure_lookup_table()
-            # plane_co = (v.co + vert.co) / 2
-            # hidden_verts = []
-            # for v1 in bm.verts:
-            #     if (mathutils.geometry.distance_point_to_plane(v1.co, v.co, self.camera_origin) < -0.1 and
-            #         mathutils.geometry.distance_point_to_plane(v1.co, vert.co, self.camera_origin) < -0.1):
-            #         hidden_verts.append(v1)
-            #         v1.hide_set(True)
+
+            hidden_faces = []
+            for f in bm.faces:
+                if is_backfacing(f, view_vector):
+                    hidden_faces.append(f)
+                    f.hide_set(True)
 
             visible_geom = [g for g in bm.faces[:]
                             + bm.verts[:] + bm.edges[:] if not g.hide]
@@ -147,23 +149,24 @@ class HalfKnifeOperator(bpy.types.Operator):
             bisect_result = bmesh.ops.bisect_plane(bm, geom = visible_geom, dist = 0.0001, plane_co = v.co, plane_no = normal, use_snap_center = False, clear_outer = False, clear_inner = False)
 
 
+
             # print(result['geom'])
             bisect_edges = list(filter(lambda g: type(g) == bmesh.types.BMEdge, bisect_result['geom_cut']))
 
+
             v.select_set(True)
             vert.select_set(True)
+
             bpy.ops.mesh.shortest_path_select(edge_mode = 'SELECT')
-            dissolved_edges = list(filter(lambda e: not e.select and (not vert in e.verts or self.cut_mode != 'FACE'), bisect_edges))
-            shared = find_shared_edge(v, vert)
-            # self.select_only([shared])
-            if shared:
-                dissolved_edges.remove(shared)
-            # self.select_only(dissolved_edges)
-            bmesh.ops.dissolve_edges(bm, edges = dissolved_edges, use_verts = True, use_face_split = False)
+            dissolved_edges = list(filter(lambda e: not e.select, bisect_edges))
 
-            # for v1 in hidden_verts:
-                # v1.hide_set(False)
+            for f in hidden_faces:
+                f.hide_set(False)
 
+
+            all_dissolved_edges += dissolved_edges
+
+        bmesh.ops.dissolve_edges(bm, edges = all_dissolved_edges, use_verts = True, use_face_split = False)
         if self.cut_mode == 'FACE':
             edge_len = len(vert.link_edges)
             new_edges = vert.link_edges
