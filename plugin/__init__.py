@@ -278,6 +278,13 @@ class HalfKnifeOperator(bpy.types.Operator):
             self.addVert(context, event)
             return {'FINISHED'}
 
+        if self.auto_cut:
+            if self.calc_hit(context, event):
+                self.camera_origin = self.util.get_camera_origin(event)
+                self.run_cut()
+            return {'FINISHED'}
+
+
         self.draw = Draw(context, context.object.matrix_world)
         context.window_manager.modal_handler_add(self)
         self.draw.draw_start()
