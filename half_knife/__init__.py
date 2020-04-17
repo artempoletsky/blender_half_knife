@@ -115,8 +115,8 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.snap_mode = 'VERT'
         self.vert = vert
         return {
-            'edge': [(self.get_drawing_edges(vert.co), COLORS['cutting_edge'])],
-            'vert': [([vert.co], COLORS['vertex_snap'])]
+            'edge': [(self.get_drawing_edges(vert.co), self.prefs.cutting_edge)],
+            'vert': [([vert.co], self.prefs.vertex_snap)]
         }
 
     def snap_face_preivew(self, hit, face):
@@ -124,8 +124,8 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.face = face
         return {
             # 'face': [(face, (1, 0, 0, .5))],
-            'edge': [(self.get_drawing_edges(hit), COLORS['cutting_edge'])],
-            'vert': [([hit], COLORS['vertex'])]
+            'edge': [(self.get_drawing_edges(hit), self.prefs.cutting_edge)],
+            'vert': [([hit], self.prefs.vertex)]
         }
 
     def snap_edge_preivew(self, hit, edge, projected, split_ratio):
@@ -136,8 +136,8 @@ class HalfKnifeOperator(bpy.types.Operator):
         if split_ratio in [0, 1]:
             projected = projected.co
         return {
-            'edge': [(self.get_drawing_edges(projected), COLORS['cutting_edge']), ([edge_to_dict(edge)], COLORS['edge_snap'])],
-            'vert': [([projected], COLORS['vertex'])]
+            'edge': [(self.get_drawing_edges(projected), self.prefs.cutting_edge), ([edge_to_dict(edge)], self.prefs.edge_snap)],
+            'vert': [([projected], self.prefs.vertex)]
         }
 
 
@@ -280,7 +280,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.context = context
         self.object = context.edit_object
         addons_prefs = context.preferences.addons
-        # print(addons_prefs)
+
         id = 'half_knife'
         self.prefs = addons_prefs[id].preferences if id in addons_prefs else preferences.HalfKnifePreferencesDefaults()
 

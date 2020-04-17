@@ -5,7 +5,6 @@ from mathutils import Vector
 def BVH_ray_cast(context, event, tree, bmesh, object):
     ray_origin_obj, ray_direction_obj = get_view_object_space(context, event, object)
     hit, normal, face_index, distance = tree.ray_cast(ray_origin_obj, ray_direction_obj)
-    print(hit)
     if not hit:
         return None, None
     return hit, bmesh.faces[face_index]
