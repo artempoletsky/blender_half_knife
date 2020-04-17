@@ -281,7 +281,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.object = context.edit_object
         addons_prefs = context.preferences.addons
         # print(addons_prefs)
-        id = 'HalfKnife'
+        id = 'half_knife'
         self.prefs = addons_prefs[id].preferences if id in addons_prefs else preferences.HalfKnifePreferencesDefaults()
 
         self.bmesh = bmesh.from_edit_mesh(self.object.data)

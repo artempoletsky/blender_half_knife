@@ -7,8 +7,8 @@ class HalfKnifePreferencesDefaults():
 
 defaults = HalfKnifePreferencesDefaults()
 
-class HalfKnifePreferences(bpy.types.AddonPreferences, HalfKnifePreferencesBase):
-    bl_idname = 'HalfKnife'
+class HalfKnifePreferences(bpy.types.AddonPreferences):
+    bl_idname = 'half_knife'
 
     tabs : bpy.props.EnumProperty(name="Tabs",
         items = [("GENERAL", "General", ""),
@@ -32,15 +32,27 @@ class HalfKnifePreferences(bpy.types.AddonPreferences, HalfKnifePreferencesBase)
             self.draw_general(box)
 
         elif self.tabs == "COLORS":
-            self.draw_snap_utilities_colors(box)
+            self.draw_colors(box)
 
         elif self.tabs == "KEYMAPS":
-            self.draw_snap_utilities_keymaps(context, box)
+            self.draw_keymaps(context, box)
 
-    def draw_general(box):
+    def draw_general(self, layout):
         row = layout.row()
         col = row.column()
 
-        col.label(text="Snap Properties:")
+        col.label(text="Snap settings:")
         col.prop(self, "snap_vertex_distance")
         col.prop(self, "snap_edge_distance")
+
+    def draw_colors(self, layout):
+        row = layout.row()
+        col = row.column()
+
+        col.label(text="Color settings:")
+
+    def draw_keymaps(self, context, layout):
+        row = layout.row()
+        col = row.column()
+
+        col.label(text="Keymap settings:")
