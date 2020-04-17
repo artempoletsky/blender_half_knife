@@ -182,7 +182,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             vert.select_set(True)
 
             bpy.ops.mesh.shortest_path_select(edge_mode = 'SELECT')
-            dissolved_edges = list(filter(lambda e: not e.select, bisect_edges))
+            dissolved_edges = list(filter(lambda e: not e.select and not e in visible_geom, bisect_edges))
 
             bpy.ops.mesh.reveal()
 
