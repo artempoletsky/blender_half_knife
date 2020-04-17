@@ -8,9 +8,6 @@ class GeometryMath:
         self.region = context.region
         self.rv3d = context.region_data
 
-    def get_camera_origin(self, event):
-        return view3d_utils.region_2d_to_origin_3d(self.region, self.rv3d, (event.mouse_region_x, event.mouse_region_y))
-
     def distance_2d(self, v1, v2):
          pxv1 = view3d_utils.location_3d_to_region_2d(self.region, self.rv3d, v1)
          pxv2 = view3d_utils.location_3d_to_region_2d(self.region, self.rv3d, v2)

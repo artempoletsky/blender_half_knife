@@ -147,8 +147,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             vert.co = self.hit
             edges = list(vert.link_edges)
 
-        view_vector = ray_cast.get_view_vector(context, event)
-        view_origin = ray_cast.get_view_origin(context, event)
+        view_origin, view_vector = ray_cast.get_view_object_space(context, event, self.object)
 
         pairs = []
         all_dissolved_edges = []
@@ -222,7 +221,7 @@ class HalfKnifeOperator(bpy.types.Operator):
     def calc_hit(self, context, event):
         batch = None
         try:
-            hit, face = ray_cast.BVH_ray_cast(context, event, self.tree, self.bmesh)
+            hit, face = ray_cast.BVH_ray_cast(context, event, self.tree, self.bmesh, self.object)
         except:
             hit = None
         self.hit = hit
@@ -272,7 +271,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.initial_vertices = [v for v in self.bmesh.verts if v.select]
         vert_len = len(self.initial_vertices)
         if vert_len > 10:
-            self.report({'WARNING'}, 'Too many vertices selected! Canceling.')
+            self.report({'ERROR'}, 'Too many vertices selected! Canceling.')
             return {'CANCELLED'}
 
         self.tree = BVHTree.FromBMesh(self.bmesh)
