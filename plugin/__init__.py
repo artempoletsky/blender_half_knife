@@ -1,3 +1,15 @@
+bl_info = {
+    "name": "Half knife",
+    "author": "Artem Poletsky",
+    "version": (1, 0, 0),
+    "blender": (2, 82, 0),
+    # "location": "",
+    "description": "Optimized for fast workflow knife tool",
+    "warning": "",
+    "wiki_url": "",
+    "category": "Mesh",
+}
+
 if "bpy" in locals():
     import importlib
     importlib.reload(ray_cast)
@@ -5,10 +17,13 @@ if "bpy" in locals():
     Draw = draw.Draw
     importlib.reload(geometry_math)
     GeometryMath = geometry_math.GeometryMath
+    importlib.reload(preferences)
+
 else:
     from . import ray_cast
     from .draw import Draw
     from .geometry_math import GeometryMath
+    from . import preferences
 
 import bpy
 from bpy_extras import view3d_utils
@@ -228,10 +243,9 @@ class HalfKnifeOperator(bpy.types.Operator):
         if hit:
             vert, edge, vertex_pixel_distance, edge_pixel_distance, split_ratio, projected = self.util.find_closest(hit, face)
 
-            snap_distance = 15
-            if vertex_pixel_distance < snap_distance:
+            if vertex_pixel_distance < self.prefs.snap_vertex_distance:
                 batch = self.snap_vert_preivew(vert)
-            elif edge_pixel_distance < snap_distance:
+            elif edge_pixel_distance < self.prefs.snap_edge_distance:
                 batch = self.snap_edge_preivew(hit, edge, projected, split_ratio)
             else:
                 batch = self.snap_face_preivew(hit, face)
@@ -265,6 +279,10 @@ class HalfKnifeOperator(bpy.types.Operator):
     def invoke(self, context, event):
         self.context = context
         self.object = context.edit_object
+        addons_prefs = context.preferences.addons
+        # print(addons_prefs)
+        id = 'HalfKnife'
+        self.prefs = addons_prefs[id].preferences if id in addons_prefs else preferences.HalfKnifePreferencesDefaults()
 
         self.bmesh = bmesh.from_edit_mesh(self.object.data)
 
@@ -293,14 +311,22 @@ class HalfKnifeOperator(bpy.types.Operator):
 
         return {'RUNNING_MODAL'}
 
+classes = (
+    preferences.HalfKnifePreferences,
+    HalfKnifeOperator
+)
 
 def register():
-    bpy.utils.register_class(HalfKnifeOperator)
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+    # register_keymaps()
 
 
 def unregister():
-    bpy.utils.unregister_class(HalfKnifeOperator)
-
+    # unregister_keymaps()
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
 
 if __name__ == "__main__":
     register()
