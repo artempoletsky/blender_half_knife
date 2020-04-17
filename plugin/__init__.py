@@ -127,7 +127,7 @@ class HalfKnifeOperator(bpy.types.Operator):
 
 
 
-    def run_cut(self):
+    def run_cut(self, context, event):
 #        v = self.bmesh.verts.new()
 #        v.co = self.new_vert
         if not self.hit:
@@ -147,7 +147,9 @@ class HalfKnifeOperator(bpy.types.Operator):
             vert.co = self.hit
             edges = list(vert.link_edges)
 
-        view_vector = ray_cast.get_view_vector(self.context)
+        view_vector = ray_cast.get_view_vector(context, event)
+        view_origin = ray_cast.get_view_origin(context, event)
+
         pairs = []
         all_dissolved_edges = []
         for v in self.initial_vertices:
@@ -156,7 +158,7 @@ class HalfKnifeOperator(bpy.types.Operator):
                 bmesh.ops.connect_vert_pair(self.bmesh, verts = (v, vert))
                 continue
 
-            normal = mathutils.geometry.normal([v.co, vert.co, self.camera_origin])
+            normal = mathutils.geometry.normal([v.co, vert.co, view_origin])
             bm.verts.ensure_lookup_table()
 
             hidden_faces = []
@@ -172,6 +174,10 @@ class HalfKnifeOperator(bpy.types.Operator):
 
             bisect_edges = list(filter(lambda g: type(g) == bmesh.types.BMEdge, bisect_result['geom_cut']))
 
+            for e in bisect_edges:
+                e.select_set(True)
+            bpy.ops.mesh.hide(unselected = True)
+            bpy.ops.mesh.select_all(action = 'DESELECT')
 
             v.select_set(True)
             vert.select_set(True)
@@ -179,9 +185,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             bpy.ops.mesh.shortest_path_select(edge_mode = 'SELECT')
             dissolved_edges = list(filter(lambda e: not e.select, bisect_edges))
 
-            for f in hidden_faces:
-                f.hide_set(False)
-
+            bpy.ops.mesh.reveal()
 
             all_dissolved_edges += dissolved_edges
 
@@ -205,6 +209,7 @@ class HalfKnifeOperator(bpy.types.Operator):
 
 
         bmesh.update_edit_mesh(self.object.data, True)
+        # self.select_only(all_dissolved_edges)
         bpy.ops.mesh.select_all(action = 'DESELECT')
         vert.select_set(True)
         bm.select_history.add(vert)
@@ -253,8 +258,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         elif event.type in {'LEFTMOUSE'}:
             self.calc_hit(context, event)
             self.draw.draw_end()
-            self.camera_origin = self.util.get_camera_origin(event)
-            self.run_cut()
+            self.run_cut(context, event)
             return {'FINISHED'}
 
         return {'RUNNING_MODAL'}
@@ -280,8 +284,7 @@ class HalfKnifeOperator(bpy.types.Operator):
 
         if self.auto_cut:
             if self.calc_hit(context, event):
-                self.camera_origin = self.util.get_camera_origin(event)
-                self.run_cut()
+                self.run_cut(context, event)
             return {'FINISHED'}
 
 

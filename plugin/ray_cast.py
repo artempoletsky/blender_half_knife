@@ -44,7 +44,14 @@ def BVH_ray_cast(context, event, tree, bmesh):
 
     return hit, bmesh.faces[face_index]
 
-def get_view_vector(context):
-    camera = context.space_data.camera
-    cam_direction = camera.matrix_world.to_quaternion() @ Vector((0.0, 0.0, -1.0))
-    return cam_direction
+def get_view_vector(context, event):
+    region = context.region
+    rv3d = context.region_data
+    coord = event.mouse_region_x, event.mouse_region_y
+    return view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
+
+def get_view_origin(context, event):
+    region = context.region
+    rv3d = context.region_data
+    coord = event.mouse_region_x, event.mouse_region_y
+    return view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
