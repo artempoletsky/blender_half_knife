@@ -160,7 +160,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         else:
             vert = bmesh.ops.poke(bm, faces=[self.face])['verts'][0]
             vert.co = self.hit
-            edges = list(vert.link_edges)
+            poke_edges = list(vert.link_edges)
 
         view_origin, view_vector = ray_cast.get_view_object_space(context, event, self.object)
 
@@ -208,7 +208,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             edge_len = len(vert.link_edges)
             new_edges = vert.link_edges
             dissolved_edges = []
-            for e in new_edges:
+            for e in poke_edges:
                 if not (e.other_vert(vert) in self.initial_vertices) and edge_len > 2:
                     dissolved_edges.append(e)
                     edge_len -= 1
