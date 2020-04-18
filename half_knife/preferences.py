@@ -1,5 +1,6 @@
 
 import bpy
+import rna_keymap_ui
 
 user_prefs = bpy.context.preferences.themes[0].view_3d
 
@@ -77,7 +78,7 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
             self.draw_colors(box)
 
         elif self.tabs == "KEYMAPS":
-            self.draw_keymaps(context, box)
+            self.draw_keymaps(box)
 
     def draw_general(self, layout):
         row = layout.row()
@@ -96,8 +97,72 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
         flow.prop(self, "vertex_snap")
         flow.prop(self, "edge_snap")
 
-    def draw_keymaps(self, context, layout):
+    def draw_keymaps(self, layout):
         row = layout.row()
         col = row.column()
 
         col.label(text="Keymap settings:")
+
+        wm = bpy.context.window_manager
+        kc = wm.keyconfigs.user
+        km = kc.keymaps['Mesh']
+        kmi = km.keymap_items['mesh.half_knife_operator']
+        if kmi:
+            col.context_pointer_set("keymap", km)
+            rna_keymap_ui.draw_kmi(["ADDON", "USER", "DEFAULT"], kc, km, kmi, col, 0)
+        else:
+            col.label("No hotkey entry found")
+            col.operator(Template_Add_Hotkey.bl_idname, text = "Add hotkey entry", icon = 'ZOOMIN')
+
+        # kc = bpy.context.window_manager.keyconfigs.active
+        # km = bpy.context.window_manager.keyconfigs.active.keymaps['Mesh']
+        kmi = km.keymap_items['mesh.knife_tool']
+        col.context_pointer_set("keymap", km)
+        rna_keymap_ui.draw_kmi(["ADDON", "USER", "DEFAULT"], kc, km, kmi, col, 0)
+
+
+addon_keymaps = []
+
+from bl_keymap_utils.io import keyconfig_init_from_data
+
+def register_keymaps():
+
+    keyconfigs = bpy.context.window_manager.keyconfigs
+    # kc_defaultconf = keyconfigs.default
+    kc_addonconf = keyconfigs.addon
+
+
+    keyconfig_init_from_data(kc_addonconf, [
+         (
+            "Mesh",
+            {"space_type": 'EMPTY', "region_type": 'WINDOW'},
+            {"items": [
+                ("mesh.half_knife_operator", {"type": 'K', "value": 'PRESS'},
+                 {"properties": [("auto_cut", False)],
+                  "active":True}),
+            ]},
+        ),
+
+        (
+           "Mesh",
+           {"space_type": 'EMPTY', "region_type": 'WINDOW'},
+           {"items": [
+               ("mesh.knife_tool", {"type": 'K', "value": 'PRESS', "alt": True},
+                {"properties": [],
+                 "active":True}),
+           ]},
+       ),
+    ])
+    # TODO: find the user defined tool_mouse.
+
+    # keyconfig_init_from_data(kc_defaultconf, keys.generate_empty_snap_utilities_tools_keymaps())
+    # keyconfig_init_from_data(kc_addonconf, keys.generate_snap_utilities_keymaps())
+
+def unregister_keymaps():
+    # 
+    # keyconfigs = bpy.context.window_manager.keyconfigs
+    # # kc_defaultconf = keyconfigs.default
+    # kc_addonconf = keyconfigs.addon
+    #
+    # keyconfig_init_from_data(kc_addonconf, [])
+    return

@@ -320,11 +320,12 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    # register_keymaps()
+    preferences.register_keymaps()
 
 
 def unregister():
-    # unregister_keymaps()
+    preferences.unregister_keymaps()
+
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
