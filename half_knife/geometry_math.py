@@ -3,14 +3,15 @@ import numpy as np
 
 class GeometryMath:
 
-    def __init__(self, context):
+    def __init__(self, context, object):
         self.context = context
         self.region = context.region
         self.rv3d = context.region_data
+        self.matrix = object.matrix_world
 
     def distance_2d(self, v1, v2):
-         pxv1 = view3d_utils.location_3d_to_region_2d(self.region, self.rv3d, v1)
-         pxv2 = view3d_utils.location_3d_to_region_2d(self.region, self.rv3d, v2)
+         pxv1 = view3d_utils.location_3d_to_region_2d(self.region, self.rv3d, self.matrix @ v1)
+         pxv2 = view3d_utils.location_3d_to_region_2d(self.region, self.rv3d, self.matrix @ v2)
          return (pxv1 - pxv2).length
 
     def vertex_project(self, point, edge):

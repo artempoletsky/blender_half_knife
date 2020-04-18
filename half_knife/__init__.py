@@ -293,7 +293,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             return {'CANCELLED'}
 
         self.tree = BVHTree.FromBMesh(self.bmesh)
-        self.util = GeometryMath(context)
+        self.util = GeometryMath(context, self.object)
 
         if vert_len == 0:
             self.addVert(context, event)
