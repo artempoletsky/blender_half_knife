@@ -97,7 +97,7 @@ class HalfKnifeOperator(bpy.types.Operator):
 
     def addVert(self, context, event):
         if not self.calc_hit(context, event):
-            return
+            return None
         vert = self.get_new_vert()
         if self.snap_mode == 'FACE':
             dissolved_edges = vert.link_edges[slice(2)]
@@ -105,6 +105,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         bmesh.update_edit_mesh(self.object.data, True)
         vert.select_set(True)
         self.bmesh.select_history.add(vert)
+        return vert
 
     def get_drawing_edges(self, hit):
         return [{"verts": [{"co": v.co},
@@ -296,8 +297,10 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.util = GeometryMath(context, self.object)
 
         if vert_len == 0:
-            self.addVert(context, event)
-            return {'FINISHED'}
+            vert = self.addVert(context, event)
+            if not vert or self.auto_cut:
+                return {'FINISHED'}
+            self.initial_vertices = [vert]
 
         if self.auto_cut:
             if self.calc_hit(context, event):
