@@ -8,10 +8,40 @@ class GeometryMath:
         self.region = context.region
         self.rv3d = context.region_data
         self.matrix = object.matrix_world
+        self.matrix_inv = self.matrix.inverted()
+
+    def ray_cast_BVH(self, tree, bm, x, y):
+        ray_origin_obj, ray_direction_obj = self.get_view_object_space(x, y)
+        hit, normal, face_index, distance = tree.ray_cast(ray_origin_obj, ray_direction_obj)
+        if not hit:
+            return None, None
+        return hit, bm.faces[face_index]
+
+    def get_view_object_space(self, x, y):
+        view_origin, view_vector = self.get_view_world_space(x, y)
+        ray_target = view_origin + view_vector
+
+        matrix_inv = self.matrix_inv
+        ray_origin_obj = matrix_inv @ view_origin
+        ray_target_obj = matrix_inv @ ray_target
+        ray_direction_obj = ray_target_obj - ray_origin_obj
+
+        return ray_origin_obj, ray_direction_obj
+
+    def get_view_world_space(self, x, y):
+        coord = x, y
+        view_vector = view3d_utils.region_2d_to_vector_3d(self.region, self.rv3d, coord)
+        view_origin = view3d_utils.region_2d_to_origin_3d(self.region, self.rv3d, coord)
+        return view_origin, view_vector
+
+
+
+    def location_3d_to_region_2d_object_space(self, v):
+        return view3d_utils.location_3d_to_region_2d(self.region, self.rv3d, self.matrix @ v)
 
     def distance_2d(self, v1, v2):
-         pxv1 = view3d_utils.location_3d_to_region_2d(self.region, self.rv3d, self.matrix @ v1)
-         pxv2 = view3d_utils.location_3d_to_region_2d(self.region, self.rv3d, self.matrix @ v2)
+         pxv1 = self.location_3d_to_region_2d_object_space(v1)
+         pxv2 = self.location_3d_to_region_2d_object_space(v2)
          return (pxv1 - pxv2).length
 
     def vertex_project(self, point, edge):
