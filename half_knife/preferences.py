@@ -31,8 +31,8 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
             ("COLORS", "Colors", ""),],
         default="GENERAL")
 
-    snap_vertex_distance : bpy.props.IntProperty(name = "Vertex snap distance", default = defaults.snap_vertex_distance)
-    snap_edge_distance : bpy.props.IntProperty(name = "Edge snap distance", default = defaults.snap_edge_distance)
+    snap_vertex_distance : bpy.props.IntProperty(name = "Vertex snap distance (pixels)", default = defaults.snap_vertex_distance)
+    snap_edge_distance : bpy.props.IntProperty(name = "Edge snap distance (pixels)", default = defaults.snap_edge_distance)
 
     cutting_edge : bpy.props.FloatVectorProperty(name="Cutting edge",
         default=defaults.cutting_edge,
@@ -159,7 +159,7 @@ def register_keymaps():
     # keyconfig_init_from_data(kc_addonconf, keys.generate_snap_utilities_keymaps())
 
 def unregister_keymaps():
-    # 
+    #
     # keyconfigs = bpy.context.window_manager.keyconfigs
     # # kc_defaultconf = keyconfigs.default
     # kc_addonconf = keyconfigs.addon
