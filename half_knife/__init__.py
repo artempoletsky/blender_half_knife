@@ -115,6 +115,7 @@ class HalfKnifeOperator(bpy.types.Operator):
     def snap_vert_preivew(self, vert):
         self.snap_mode = 'VERT'
         self.vert = vert
+        self.snapped_hit = vert.co
         return {
             'edge': [(self.get_drawing_edges(vert.co), self.prefs.cutting_edge)],
             'vert': [([vert.co], self.prefs.vertex_snap)]
@@ -123,6 +124,7 @@ class HalfKnifeOperator(bpy.types.Operator):
     def snap_face_preivew(self, hit, face):
         self.snap_mode = 'FACE'
         self.face = face
+        self.snapped_hit = hit
         return {
             # 'face': [(face, (1, 0, 0, .5))],
             'edge': [(self.get_drawing_edges(hit), self.prefs.cutting_edge)],
@@ -136,6 +138,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         # if no need to create new vertex
         if split_ratio in [0, 1]:
             projected = projected.co
+        self.snapped_hit = projected
         return {
             'edge': [(self.get_drawing_edges(projected), self.prefs.cutting_edge), ([edge_to_dict(edge)], self.prefs.edge_snap)],
             'vert': [([projected], self.prefs.vertex)]
@@ -154,10 +157,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             view_origin, view_vector = self.util.get_view_world_space(px.x, px.y)
             v1 = bm.verts.new(view_origin + view_vector)
             edge = bm.edges.new((v0, v1))
-        # print(view_vector)
-        # bm.verts.ensure_lookup_table()
-        #
-        # bm.edges.ensure_lookup_table()
+
         me = bpy.data.meshes.new("Mesh")
         bm.to_mesh(me)
         bm.free()
@@ -181,34 +181,16 @@ class HalfKnifeOperator(bpy.types.Operator):
 #        v.co = self.new_vert
         if not self.hit:
             return
-        for v in self.initial_vertices:
-            v.select_set(False)
-
         bm = self.bmesh
-
-        select_mode = tuple(context.scene.tool_settings.mesh_select_mode)
-        if select_mode == (True, False, False):
-            select_mode = 'VERT'
-        elif select_mode == (False, True, False) :
-            select_mode = 'EDGE'
-        else:
-            select_mode = 'FACE'
-
-        snapped_hit = self.hit
-        if self.snap_mode == 'VERT':
-            snapped_hit = self.vert.co
-        elif self.snap_mode == 'EDGE':
-            edge, vert = bmesh.utils.edge_split(self.edge, self.edge.verts[0], self.split_ratio)
-            snapped_hit = vert.co
-
-        self.create_cut_obj(self.initial_vertices, snapped_hit)
+        self.create_cut_obj(self.initial_vertices, self.snapped_hit)
         bpy.ops.mesh.knife_project()
-        bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = select_mode)
+        bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
         self.delete_cut_obj()
         bm = self.bmesh = bmesh.from_edit_mesh(self.object.data)
         bm.faces.ensure_lookup_table()
         self.initial_vertices = []
         self.tree = BVHTree.FromBMesh(self.bmesh)
+        bpy.ops.mesh.select_all(action = 'DESELECT')
         self.addVert(context, event)
 
     def select_only(self, bmesh_geom):
