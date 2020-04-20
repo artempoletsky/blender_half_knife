@@ -12,7 +12,6 @@ bl_info = {
 
 if "bpy" in locals():
     import importlib
-    importlib.reload(ray_cast)
     importlib.reload(draw)
     Draw = draw.Draw
     importlib.reload(geometry_math)
@@ -20,7 +19,6 @@ if "bpy" in locals():
     importlib.reload(preferences)
 
 else:
-    from . import ray_cast
     from .draw import Draw
     from .geometry_math import GeometryMath
     from . import preferences
