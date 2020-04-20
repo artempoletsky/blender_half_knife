@@ -141,7 +141,40 @@ class HalfKnifeOperator(bpy.types.Operator):
             'vert': [([projected], self.prefs.vertex)]
         }
 
+    def create_cut_obj(self, initial_vertices, new_vertex_co):
+        # Make a new BMesh
+        bm = bmesh.new()
 
+
+        px = self.util.location_3d_to_region_2d_object_space(new_vertex_co)
+        view_origin, view_vector = self.util.get_view_world_space(px.x, px.y)
+        v0 = bm.verts.new(view_origin + view_vector)
+        for v in initial_vertices:
+            px = self.util.location_3d_to_region_2d_object_space(v.co)
+            view_origin, view_vector = self.util.get_view_world_space(px.x, px.y)
+            v1 = bm.verts.new(view_origin + view_vector)
+            edge = bm.edges.new((v0, v1))
+        # print(view_vector)
+        # bm.verts.ensure_lookup_table()
+        #
+        # bm.edges.ensure_lookup_table()
+        me = bpy.data.meshes.new("Mesh")
+        bm.to_mesh(me)
+        bm.free()
+
+
+        # Add the mesh to the scene
+        obj = bpy.data.objects.new("Object", me)
+        bpy.context.collection.objects.link(obj)
+
+        # bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        self.cut_obj = obj
+
+    def delete_cut_obj(self):
+        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.delete({"selected_objects": [self.cut_obj]})
+        bpy.ops.object.editmode_toggle()
 
     def run_cut(self, context, event):
 #        v = self.bmesh.verts.new()
@@ -153,68 +186,81 @@ class HalfKnifeOperator(bpy.types.Operator):
 
         bm = self.bmesh
 
+        select_mode = tuple(context.scene.tool_settings.mesh_select_mode)
+        if select_mode == (True, False, False):
+            select_mode = 'VERT'
+        elif select_mode == (False, True, False) :
+            select_mode = 'EDGE'
+        else:
+            select_mode = 'FACE'
+
+        snapped_hit = self.hit
         if self.snap_mode == 'VERT':
-            vert = self.vert
+            snapped_hit = self.vert.co
         elif self.snap_mode == 'EDGE':
             edge, vert = bmesh.utils.edge_split(self.edge, self.edge.verts[0], self.split_ratio)
+            snapped_hit = vert.co
+        #
+        # else:
+        #     vert = bmesh.ops.poke(bm, faces=[self.face])['verts'][0]
+        #     vert.co = self.hit
+        #     poke_edges = list(vert.link_edges)
 
-        else:
-            vert = bmesh.ops.poke(bm, faces=[self.face])['verts'][0]
-            vert.co = self.hit
-            poke_edges = list(vert.link_edges)
+        # view_origin, view_vector = ray_cast.get_view_object_space(context, event, self.object)
+        self.create_cut_obj(self.initial_vertices, snapped_hit)
+        # pairs = []
+        # all_dissolved_edges = []
+        # for v in self.initial_vertices:
+        #     shared_face = find_shared_face(v, vert)
+        #     if shared_face:
+        #         bmesh.ops.connect_vert_pair(self.bmesh, verts = (v, vert))
+        #         continue
+        #
+        #     self.update_cut_obj(v)
+            # bpy.ops.mesh.knife_project()
+            # normal = mathutils.geometry.normal([v.co, vert.co, view_origin])
+            # bm.verts.ensure_lookup_table()
+            #
+            # # hidden_faces = []
+            # # for f in bm.faces:
+            # #     if is_backfacing(f, view_vector):
+            # #         hidden_faces.append(f)
+            # #         f.hide_set(True)
+            #
+            # visible_geom = [g for g in bm.faces[:]
+            #                 + bm.verts[:] + bm.edges[:] if not g.hide]
+            #
+            # bisect_result = bmesh.ops.bisect_plane(bm, geom = visible_geom, dist = 0.0001, plane_co = v.co, plane_no = normal, use_snap_center = False, clear_outer = False, clear_inner = False)
+            #
+            # bisect_edges = list(filter(lambda g: type(g) == bmesh.types.BMEdge, bisect_result['geom_cut']))
+            #
+            # for e in bisect_edges:
+            #     e.select_set(True)
+            # bpy.ops.mesh.hide(unselected = True)
+            # bpy.ops.mesh.select_all(action = 'DESELECT')
+            #
+            # v.select_set(True)
+            # vert.select_set(True)
+            #
+            # bpy.ops.mesh.shortest_path_select(edge_mode = 'SELECT')
+            # dissolved_edges = list(filter(lambda e: not e.select and not e in visible_geom, bisect_edges))
+            #
+            # bpy.ops.mesh.reveal()
+            #
+            # all_dissolved_edges += dissolved_edges
 
-        view_origin, view_vector = ray_cast.get_view_object_space(context, event, self.object)
 
-        pairs = []
-        all_dissolved_edges = []
-        for v in self.initial_vertices:
-            shared_face = find_shared_face(v, vert)
-            if shared_face:
-                bmesh.ops.connect_vert_pair(self.bmesh, verts = (v, vert))
-                continue
-
-            normal = mathutils.geometry.normal([v.co, vert.co, view_origin])
-            bm.verts.ensure_lookup_table()
-
-            hidden_faces = []
-            for f in bm.faces:
-                if is_backfacing(f, view_vector):
-                    hidden_faces.append(f)
-                    f.hide_set(True)
-
-            visible_geom = [g for g in bm.faces[:]
-                            + bm.verts[:] + bm.edges[:] if not g.hide]
-
-            bisect_result = bmesh.ops.bisect_plane(bm, geom = visible_geom, dist = 0.0001, plane_co = v.co, plane_no = normal, use_snap_center = False, clear_outer = False, clear_inner = False)
-
-            bisect_edges = list(filter(lambda g: type(g) == bmesh.types.BMEdge, bisect_result['geom_cut']))
-
-            for e in bisect_edges:
-                e.select_set(True)
-            bpy.ops.mesh.hide(unselected = True)
-            bpy.ops.mesh.select_all(action = 'DESELECT')
-
-            v.select_set(True)
-            vert.select_set(True)
-
-            bpy.ops.mesh.shortest_path_select(edge_mode = 'SELECT')
-            dissolved_edges = list(filter(lambda e: not e.select and not e in visible_geom, bisect_edges))
-
-            bpy.ops.mesh.reveal()
-
-            all_dissolved_edges += dissolved_edges
-
-        bmesh.ops.dissolve_edges(bm, edges = all_dissolved_edges, use_verts = True, use_face_split = False)
-        if self.snap_mode == 'FACE':
-            edge_len = len(vert.link_edges)
-            new_edges = vert.link_edges
-            dissolved_edges = []
-            for e in poke_edges:
-                if not (e.other_vert(vert) in self.initial_vertices) and edge_len > 2:
-                    dissolved_edges.append(e)
-                    edge_len -= 1
-
-            bmesh.ops.dissolve_edges(bm, edges = dissolved_edges, use_verts = False, use_face_split = False)
+        # bmesh.ops.dissolve_edges(bm, edges = all_dissolved_edges, use_verts = True, use_face_split = False)
+        # if self.snap_mode == 'FACE':
+        #     edge_len = len(vert.link_edges)
+        #     new_edges = vert.link_edges
+        #     dissolved_edges = []
+        #     for e in poke_edges:
+        #         if not (e.other_vert(vert) in self.initial_vertices) and edge_len > 2:
+        #             dissolved_edges.append(e)
+        #             edge_len -= 1
+        #
+        #     bmesh.ops.dissolve_edges(bm, edges = dissolved_edges, use_verts = False, use_face_split = False)
 
 
 
@@ -222,12 +268,16 @@ class HalfKnifeOperator(bpy.types.Operator):
         # bmesh.update_edit_mesh(self.object.data, True)
         # for v in self.initial_vertices:
 
-
-        bmesh.update_edit_mesh(self.object.data, True)
+        # self.delete_cut_obj()
+        # bmesh.update_edit_mesh(self.object.data, True)
+        bpy.ops.mesh.knife_project()
+        bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = select_mode)
+        self.delete_cut_obj()
+        self.addVert(context, event)
         # self.select_only(all_dissolved_edges)
-        bpy.ops.mesh.select_all(action = 'DESELECT')
-        vert.select_set(True)
-        bm.select_history.add(vert)
+        # bpy.ops.mesh.select_all(action = 'DESELECT')
+        # vert.select_set(True)
+        # bm.select_history.add(vert)
 
     def select_only(self, bmesh_geom):
         bpy.ops.mesh.select_all(action = 'DESELECT')
@@ -236,10 +286,10 @@ class HalfKnifeOperator(bpy.types.Operator):
 
     def calc_hit(self, context, event):
         batch = None
-        try:
-            hit, face = ray_cast.BVH_ray_cast(context, event, self.tree, self.bmesh, self.object)
-        except:
-            hit = None
+        # try:
+        hit, face = self.util.ray_cast_BVH(self.tree, self.bmesh, event.mouse_region_x, event.mouse_region_y)
+        # except:
+            # hit = None
         self.hit = hit
         if hit:
             vert, edge, vertex_pixel_distance, edge_pixel_distance, split_ratio, projected = self.util.find_closest(hit, face)
