@@ -151,6 +151,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         view_origin, view_vector = self.util.get_view_world_space(px.x, px.y)
         v0 = bm.verts.new(view_origin + view_vector)
         for v in initial_vertices:
+            # v.select_set(False)
             px = self.util.location_3d_to_region_2d_object_space(v.co)
             view_origin, view_vector = self.util.get_view_world_space(px.x, px.y)
             v1 = bm.verts.new(view_origin + view_vector)
@@ -184,12 +185,10 @@ class HalfKnifeOperator(bpy.types.Operator):
         bpy.ops.mesh.knife_project()
         bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
         self.delete_cut_obj()
-        bm = self.bmesh = bmesh.from_edit_mesh(self.object.data)
-        bm.faces.ensure_lookup_table()
-        self.initial_vertices = []
-        self.tree = BVHTree.FromBMesh(self.bmesh)
-        bpy.ops.mesh.select_all(action = 'DESELECT')
-        self.addVert(context, event)
+        # bpy.ops.mesh.select_all(action = 'DESELECT')
+        select_location = self.util.location_3d_to_region_2d_object_space(self.snapped_hit)
+        bpy.ops.view3d.select(location = (int(select_location.x), int(select_location.y)))
+
 
     def select_only(self, bmesh_geom):
         bpy.ops.mesh.select_all(action = 'DESELECT')
