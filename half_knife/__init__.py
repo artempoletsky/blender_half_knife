@@ -215,15 +215,27 @@ class HalfKnifeOperator(bpy.types.Operator):
         return batch
 
     def draw_helper(self):
-        self.context.area.header_text_set("Test")
+        shift = "On" if self._shift else "Off"
+        ctrl = "On" if self._ctrl else "Off"
+        angle_constraint = "On" if self._angle_constraint else "Off"
+        cut_through = "On" if self._cut_through else "Off"
+        self.context.area.header_text_set("Shift: " + shift + " Ctrl: " + ctrl + " angle_constraint: " + angle_constraint + " cut_through: " + cut_through)
 
     def clear_helper(self):
         self.context.area.header_text_set(None)
 
     def modal(self, context, event):
+        self._shift = event.shift
+        self._ctrl =  event.ctrl
         if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
             # allow navigation
             return {'PASS_THROUGH'}
+        elif event.type == 'Z' and event.value == 'PRESS':
+            self._cut_through = not self._cut_through
+            self.draw_helper()
+        elif event.type == 'C' and event.value == 'PRESS':
+            self._angle_constraint = not self._angle_constraint
+            self.draw_helper()
         elif event.type == 'MOUSEMOVE':
 
             batch = self.calc_hit(context, event)
@@ -244,10 +256,14 @@ class HalfKnifeOperator(bpy.types.Operator):
             self.run_cut(context, event)
             self.clear_helper()
             return {'FINISHED'}
+        else:
+            self.draw_helper()
 
         return {'RUNNING_MODAL'}
 
     def invoke(self, context, event):
+        self._cut_through = False
+        self._angle_constraint = False
         self.context = context
         self.object = context.edit_object
         addons_prefs = context.preferences.addons
