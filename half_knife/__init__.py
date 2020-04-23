@@ -208,23 +208,23 @@ class HalfKnifeOperator(bpy.types.Operator):
         if hit:
             vert, edge, vertex_pixel_distance, edge_pixel_distance, split_ratio, projected = self.util.find_closest(hit, face)
 
-            if vertex_pixel_distance < self.prefs.snap_vertex_distance:
+            if vertex_pixel_distance < self.prefs.snap_vertex_distance and not self.turn_off_snapping:
                 batch = self.snap_vert_preivew(vert)
-            elif edge_pixel_distance < self.prefs.snap_edge_distance:
+            elif edge_pixel_distance < self.prefs.snap_edge_distance and not self.turn_off_snapping:
                 batch = self.snap_edge_preivew(hit, edge, projected, split_ratio)
             else:
                 batch = self.snap_face_preivew(hit, face)
 
         return batch
 
-    def draw_helper(self):
+    def draw_helper_text(self):
         shift = "On" if self.turn_off_snapping else "Off"
         ctrl = "On" if self.snap_to_center else "Off"
         angle_constraint = "On" if self._angle_constraint else "Off"
         cut_through = "On" if self.cut_through else "Off"
         self.context.area.header_text_set("Shift: turn off snapping(" + shift + "); Ctrl: snap to center(" + ctrl + "); C: angle_constraint (" + angle_constraint + "); Z: cut_through: (" + cut_through + ")")
 
-    def clear_helper(self):
+    def clear_helper_text(self):
         self.context.area.header_text_set(None)
 
     def modal(self, context, event):
@@ -238,10 +238,8 @@ class HalfKnifeOperator(bpy.types.Operator):
             return {'PASS_THROUGH'}
         elif event.type == 'Z' and event.value == 'PRESS':
             self.cut_through = not self.cut_through
-            self.draw_helper()
         elif event.type == 'C' and event.value == 'PRESS':
             self._angle_constraint = not self._angle_constraint
-            self.draw_helper()
         elif event.type == 'MOUSEMOVE':
 
             batch = self.calc_hit(context, event)
@@ -250,21 +248,19 @@ class HalfKnifeOperator(bpy.types.Operator):
             else:
                 self.draw.clear()
             self.draw.redraw()
-            self.draw_helper()
-            return {'RUNNING_MODAL'}
+
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             self.draw.draw_end()
-            self.clear_helper()
+            self.clear_helper_text()
             return {'CANCELLED'}
         elif event.type in {'LEFTMOUSE'}:
             self.calc_hit(context, event)
             self.draw.draw_end()
             self.run_cut(context, event)
-            self.clear_helper()
+            self.clear_helper_text()
             return {'FINISHED'}
-        else:
-            self.draw_helper()
 
+        self.draw_helper_text()
         return {'RUNNING_MODAL'}
 
     def invoke(self, context, event):
