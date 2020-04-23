@@ -214,6 +214,12 @@ class HalfKnifeOperator(bpy.types.Operator):
 
         return batch
 
+    def draw_helper(self):
+        self.context.area.header_text_set("Test")
+
+    def clear_helper(self):
+        self.context.area.header_text_set(None)
+
     def modal(self, context, event):
         if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
             # allow navigation
@@ -226,14 +232,17 @@ class HalfKnifeOperator(bpy.types.Operator):
             else:
                 self.draw.clear()
             self.draw.redraw()
+            self.draw_helper()
             return {'RUNNING_MODAL'}
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             self.draw.draw_end()
+            self.clear_helper()
             return {'CANCELLED'}
         elif event.type in {'LEFTMOUSE'}:
             self.calc_hit(context, event)
             self.draw.draw_end()
             self.run_cut(context, event)
+            self.clear_helper()
             return {'FINISHED'}
 
         return {'RUNNING_MODAL'}

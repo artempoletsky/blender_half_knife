@@ -147,6 +147,16 @@ def register_keymaps():
            "Mesh",
            {"space_type": 'EMPTY', "region_type": 'WINDOW'},
            {"items": [
+               ("mesh.half_knife_operator", {"type": 'K', "value": 'PRESS', "shift": True},
+                {"properties": [("auto_cut", True)],
+                 "active":True}),
+           ]},
+       ),
+
+        (
+           "Mesh",
+           {"space_type": 'EMPTY', "region_type": 'WINDOW'},
+           {"items": [
                ("mesh.knife_tool", {"type": 'K', "value": 'PRESS', "alt": True},
                 {"properties": [],
                  "active":True}),
