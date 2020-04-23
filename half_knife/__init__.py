@@ -125,11 +125,14 @@ class HalfKnifeOperator(bpy.types.Operator):
     def snap_face_preivew(self, hit, face):
         self.snap_mode = 'FACE'
         self.face = face
-        self.snapped_hit = hit
+        if self.snap_to_center and not self.turn_off_snapping:
+            self.snapped_hit = face.calc_center_median()
+        else:
+            self.snapped_hit = hit
         return {
             # 'face': [(face, (1, 0, 0, .5))],
-            'edge': [(self.get_drawing_edges(hit), self.prefs.cutting_edge)],
-            'vert': [([hit], self.prefs.vertex)]
+            'edge': [(self.get_drawing_edges(self.snapped_hit), self.prefs.cutting_edge)],
+            'vert': [([self.snapped_hit], self.prefs.vertex)]
         }
 
     def snap_edge_preivew(self, hit, edge, projected, split_ratio):
@@ -139,6 +142,8 @@ class HalfKnifeOperator(bpy.types.Operator):
         # if no need to create new vertex
         if split_ratio in [0, 1]:
             projected = projected.co
+        if self.snap_to_center and not self.turn_off_snapping:
+            projected = (edge.verts[0].co + edge.verts[1].co) / 2
         self.snapped_hit = projected
         return {
             'edge': [(self.get_drawing_edges(projected), self.prefs.cutting_edge), ([edge_to_dict(edge)], self.prefs.edge_snap)],
@@ -221,8 +226,12 @@ class HalfKnifeOperator(bpy.types.Operator):
         shift = "On" if self.turn_off_snapping else "Off"
         ctrl = "On" if self.snap_to_center else "Off"
         angle_constraint = "On" if self._angle_constraint else "Off"
+        angle_constraint_text = " C: angle_constraint (" + angle_constraint + ");"
+        if len(self.initial_vertices) > 1:
+            angle_constraint_text = ""
+
         cut_through = "On" if self.cut_through else "Off"
-        self.context.area.header_text_set("Shift: turn off snapping(" + shift + "); Ctrl: snap to center(" + ctrl + "); C: angle_constraint (" + angle_constraint + "); Z: cut_through: (" + cut_through + ")")
+        self.context.area.header_text_set("Shift: turn off snapping(" + shift + "); Ctrl: snap to center(" + ctrl + ");" + angle_constraint_text + " Z: cut_through: (" + cut_through + ")")
 
     def clear_helper_text(self):
         self.context.area.header_text_set(None)
