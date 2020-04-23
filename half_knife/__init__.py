@@ -75,6 +75,9 @@ class HalfKnifeOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     auto_cut: bpy.props.BoolProperty(name="Cut without preview", default=False)
+    snap_to_center: bpy.props.BoolProperty(name="Snap to center", default=False)
+    cut_through: bpy.props.BoolProperty(name="Cut through", default=False)
+    turn_off_snapping: bpy.props.BoolProperty(name="Turn off snapping", default=False)
 
     @classmethod
     def poll(cls, context):
@@ -215,23 +218,26 @@ class HalfKnifeOperator(bpy.types.Operator):
         return batch
 
     def draw_helper(self):
-        shift = "On" if self._shift else "Off"
-        ctrl = "On" if self._ctrl else "Off"
+        shift = "On" if self.turn_off_snapping else "Off"
+        ctrl = "On" if self.snap_to_center else "Off"
         angle_constraint = "On" if self._angle_constraint else "Off"
-        cut_through = "On" if self._cut_through else "Off"
-        self.context.area.header_text_set("Shift: " + shift + " Ctrl: " + ctrl + " angle_constraint: " + angle_constraint + " cut_through: " + cut_through)
+        cut_through = "On" if self.cut_through else "Off"
+        self.context.area.header_text_set("Shift: turn off snapping(" + shift + "); Ctrl: snap to center(" + ctrl + "); C: angle_constraint (" + angle_constraint + "); Z: cut_through: (" + cut_through + ")")
 
     def clear_helper(self):
         self.context.area.header_text_set(None)
 
     def modal(self, context, event):
-        self._shift = event.shift
-        self._ctrl =  event.ctrl
+        # self._shift = event.shift
+        # self._ctrl =  event.ctrl
+        self.turn_off_snapping = event.shift
+        self.snap_to_center = event.ctrl
+
         if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
             # allow navigation
             return {'PASS_THROUGH'}
         elif event.type == 'Z' and event.value == 'PRESS':
-            self._cut_through = not self._cut_through
+            self.cut_through = not self.cut_through
             self.draw_helper()
         elif event.type == 'C' and event.value == 'PRESS':
             self._angle_constraint = not self._angle_constraint
