@@ -200,7 +200,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             return
 
         self.create_cut_obj(self.initial_vertices, self.snapped_hit)
-        bpy.ops.mesh.knife_project()
+        bpy.ops.mesh.knife_project(cut_through = self._cut_through)
         bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
         self.delete_cut_obj()
         # bpy.ops.mesh.select_all(action = 'DESELECT')
@@ -254,7 +254,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             angle_constraint_text = ""
             snap_to_center_text = ""
 
-        cut_through = "On" if self.cut_through else "Off"
+        cut_through = "On" if self._cut_through else "Off"
         self.context.area.header_text_set("Shift: turn off snapping(" + shift + ");" + snap_to_center_text + angle_constraint_text + " Z: cut_through: (" + cut_through + ")")
 
     def clear_helper_text(self):
