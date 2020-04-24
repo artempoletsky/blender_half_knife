@@ -28,6 +28,14 @@ class GeometryMath:
 
         return ray_origin_obj, ray_direction_obj
 
+    def get_viewport_point_world_space(self, x, y):
+        view_origin, view_vector = self.get_view_world_space(x, y)
+        return view_origin + view_vector
+
+    def get_viewport_point_object_space(self, x, y):
+        view_origin, view_vector = self.get_view_object_space(x, y)
+        return view_origin + view_vector
+
     def get_view_world_space(self, x, y):
         coord = x, y
         view_vector = view3d_utils.region_2d_to_vector_3d(self.region, self.rv3d, coord)

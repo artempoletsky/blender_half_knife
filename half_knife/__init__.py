@@ -120,6 +120,23 @@ class HalfKnifeOperator(bpy.types.Operator):
             'vert': [([vert.co], self.prefs.vertex_snap)]
         }
 
+    def get_drawing_axis(self):
+        vert = self.initial_vertices[0].co
+        o = self.util.location_3d_to_region_2d_object_space(vert)
+        axises = []
+        width = self.context.area.width
+        height = self.context.area.height
+        v1 = self.util.get_viewport_point_object_space(o.x, 0)
+        v2 = self.util.get_viewport_point_object_space(o.x, height)
+        axises.append({
+            "verts": [{"co": v1}, {"co": v2}]
+        })
+        # print(axises)
+        return (axises, (1, 1, 1, 1))
+
+    def snap_to_axis(self, hit):
+        return hit
+
     def snap_face_preivew(self, hit, face):
         self.snap_mode = 'FACE'
         self.face = face
@@ -267,6 +284,7 @@ class HalfKnifeOperator(bpy.types.Operator):
     def redraw(self, context, event):
         batch = self.calc_hit(context, event)
         if batch:
+            batch['edge'].insert(0, self.get_drawing_axis())
             self.draw.batch(batch)
         else:
             self.draw.clear()
