@@ -99,7 +99,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             return None, None
         vert, center = self.get_new_vert()
         if self.snap_mode == 'FACE':
-            dissolved_edges = vert.link_edges[slice(2)]
+            dissolved_edges = vert.link_edges[slice(len(vert.link_edges)-2)]
             bmesh.ops.dissolve_edges(self.bmesh, edges = dissolved_edges, use_verts = False, use_face_split = False)
         bmesh.update_edit_mesh(self.object.data, True)
         vert.select_set(True)
@@ -153,11 +153,13 @@ class HalfKnifeOperator(bpy.types.Operator):
         px = self.util.location_3d_to_region_2d_object_space(new_vertex_co)
         view_origin, view_vector = self.util.get_view_world_space(px.x, px.y)
         v0 = bm.verts.new(view_origin + view_vector)
+        v0.select_set(True)
         for v in initial_vertices:
             # v.select_set(False)
             px = self.util.location_3d_to_region_2d_object_space(v.co)
             view_origin, view_vector = self.util.get_view_world_space(px.x, px.y)
             v1 = bm.verts.new(view_origin + view_vector)
+            v1.select_set(True)
             edge = bm.edges.new((v0, v1))
 
         me = bpy.data.meshes.new("Mesh")
@@ -183,14 +185,14 @@ class HalfKnifeOperator(bpy.types.Operator):
 #        v.co = self.new_vert
         if not self.hit:
             return
-        bm = self.bmesh
+
         self.create_cut_obj(self.initial_vertices, self.snapped_hit)
-        bpy.ops.mesh.knife_project()
-        bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
-        self.delete_cut_obj()
+        # bpy.ops.mesh.knife_project()
+        # bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
+        # self.delete_cut_obj()
         # bpy.ops.mesh.select_all(action = 'DESELECT')
         select_location = self.util.location_3d_to_region_2d_object_space(self.snapped_hit)
-        bpy.ops.view3d.select(location = (int(select_location.x), int(select_location.y)))
+        # bpy.ops.view3d.select(location = (int(select_location.x), int(select_location.y)))
 
 
     def select_only(self, bmesh_geom):
