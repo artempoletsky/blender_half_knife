@@ -144,11 +144,16 @@ class HalfKnifeOperator(bpy.types.Operator):
             'edge': [(self.get_drawing_edges(projected), self.prefs.cutting_edge), ([edge_to_dict(edge)], self.prefs.edge_snap)],
             'vert': [([projected], self.prefs.vertex)]
         }
-    def select_path(self):
+    def select_path(self, exclude_ends):
         for start, end in self.selection_path:
             se = end - start
             l = int(se.length / 4)
-            for i in range(l + 1):
+            range_start = 0
+            range_end = l + 1
+            if exclude_ends:
+                range_start = 1
+                range_end = l
+            for i in range(range_start, range_end):
                 p = start + (i / l) * se
                 bpy.ops.view3d.select_circle(x = int(p.x), y = int(p.y), radius = 2, wait_for_input = False, mode = 'ADD')
 
@@ -199,9 +204,20 @@ class HalfKnifeOperator(bpy.types.Operator):
         bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
         self.delete_cut_obj()
         # bpy.ops.mesh.select_all(action = 'DESELECT')
-        self.select_path()
+        self.select_path(True)
+        bm = self.bmesh = bmesh.from_edit_mesh(self.object.data)
+        # bm.from_mesh(self.object.data)
+        for v in bm.verts:
+            if v.select:
+                edges = v.link_edges
+                if len(edges) == 4:
+                    v1 = edges[0].other_vert(v)
+                    v2 = edges[1].other_vert(v)
+                    v.co = (v1.co + v2.co) / 2
+
+        bmesh.update_edit_mesh(self.object.data, True)
         select_location = self.util.location_3d_to_region_2d_object_space(self.snapped_hit)
-        # bpy.ops.view3d.select(location = (int(select_location.x), int(select_location.y)))
+        bpy.ops.view3d.select(location = (int(select_location.x), int(select_location.y)))
 
 
     def select_only(self, bmesh_geom):
