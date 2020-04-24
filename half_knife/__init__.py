@@ -204,13 +204,13 @@ class HalfKnifeOperator(bpy.types.Operator):
         bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
         self.delete_cut_obj()
         # bpy.ops.mesh.select_all(action = 'DESELECT')
-        self.select_path(True)
-        bm = self.bmesh = bmesh.from_edit_mesh(self.object.data)
-        # bm.from_mesh(self.object.data)
-        for v in bm.verts:
-            if v.select:
-                edges = v.link_edges
-                if len(edges) == 4:
+        if self._snap_to_center:
+            self.select_path(True)
+            bm = self.bmesh = bmesh.from_edit_mesh(self.object.data)
+            # bm.from_mesh(self.object.data)
+            for v in bm.verts:
+                if v.select:
+                    edges = v.link_edges
                     v1 = edges[0].other_vert(v)
                     v2 = edges[1].other_vert(v)
                     v.co = (v1.co + v2.co) / 2
@@ -246,14 +246,16 @@ class HalfKnifeOperator(bpy.types.Operator):
 
     def draw_helper_text(self):
         shift = "On" if self._turn_off_snapping else "Off"
-        ctrl = "On" if self._snap_to_center else "Off"
+        snap_to_center = "On" if self._snap_to_center else "Off"
         angle_constraint = "On" if self._angle_constraint else "Off"
         angle_constraint_text = " C: angle_constraint (" + angle_constraint + ");"
-        if len(self.initial_vertices) > 1:
+        snap_to_center_text = " Ctrl: snap to center (" + snap_to_center + ");"
+        if self.is_multiple_verts:
             angle_constraint_text = ""
+            snap_to_center_text = ""
 
         cut_through = "On" if self.cut_through else "Off"
-        self.context.area.header_text_set("Shift: turn off snapping(" + shift + "); Ctrl: snap to center(" + ctrl + ");" + angle_constraint_text + " Z: cut_through: (" + cut_through + ")")
+        self.context.area.header_text_set("Shift: turn off snapping(" + shift + ");" + snap_to_center_text + angle_constraint_text + " Z: cut_through: (" + cut_through + ")")
 
     def clear_helper_text(self):
         self.context.area.header_text_set(None)
@@ -262,12 +264,20 @@ class HalfKnifeOperator(bpy.types.Operator):
         vert = self.initial_vertices[0]
         vert.co = self.inital_centered_hit if self._snap_to_center else self.initial_hit
         bmesh.update_edit_mesh(self.object.data, True)
+    def redraw(self, context, event):
+        batch = self.calc_hit(context, event)
+        if batch:
+            self.draw.batch(batch)
+        else:
+            self.draw.clear()
+        self.draw.redraw()
 
     def modal(self, context, event):
         # self._shift = event.shift
         # self._ctrl =  event.ctrl
+        is_multiple_verts = self.is_multiple_verts
         self._turn_off_snapping = event.shift
-        self._snap_to_center = event.ctrl
+        self._snap_to_center = event.ctrl and not is_multiple_verts
 
         if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
             # allow navigation
@@ -275,35 +285,28 @@ class HalfKnifeOperator(bpy.types.Operator):
         elif event.type == 'Z' and event.value == 'PRESS':
             self._cut_through = not self._cut_through
         elif event.type == 'C' and event.value == 'PRESS':
-            self._angle_constraint = not self._angle_constraint
+            self._angle_constraint = not self._angle_constraint and not is_multiple_verts
         elif event.type in {'LEFT_CTRL'}:
             if self.is_cut_from_new_vertex:
                 self.update_initial_vertex_position()
+                self.redraw(context, event)
             # self._angle_constraint = not self._angle_constraint
         elif event.type == 'MOUSEMOVE':
-
-            batch = self.calc_hit(context, event)
-            if batch:
-                self.draw.batch(batch)
-            else:
-                self.draw.clear()
-            self.draw.redraw()
+            self.redraw(context, event)
 
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
-            self.finish()
+            self.draw.draw_end()
+            self.clear_helper_text()
             return {'CANCELLED'}
         elif event.type in {'LEFTMOUSE'}:
             self.calc_hit(context, event)
+            self.draw.draw_end()
             self.run_cut(context, event)
-            self.finish()
+            self.clear_helper_text()
             return {'FINISHED'}
 
         self.draw_helper_text()
         return {'RUNNING_MODAL'}
-
-    def finish(self):
-        self.draw.draw_end()
-        self.clear_helper_text()
 
     def invoke(self, context, event):
         self._cut_through = self.cut_through
@@ -321,6 +324,7 @@ class HalfKnifeOperator(bpy.types.Operator):
 
         self.initial_vertices = [v for v in self.bmesh.verts if v.select]
         vert_len = len(self.initial_vertices)
+        self.is_multiple_verts = vert_len > 1
         if vert_len > 10:
             self.report({'ERROR'}, 'Too many vertices selected! Canceling.')
             return {'CANCELLED'}
