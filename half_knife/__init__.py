@@ -144,23 +144,31 @@ class HalfKnifeOperator(bpy.types.Operator):
             'edge': [(self.get_drawing_edges(projected), self.prefs.cutting_edge), ([edge_to_dict(edge)], self.prefs.edge_snap)],
             'vert': [([projected], self.prefs.vertex)]
         }
+    def select_path(self):
+        for start, end in self.selection_path:
+            se = end - start
+            l = int(se.length / 4)
+            for i in range(l + 1):
+                p = start + (i / l) * se
+                bpy.ops.view3d.select_circle(x = int(p.x), y = int(p.y), radius = 2, wait_for_input = False, mode = 'ADD')
 
     def create_cut_obj(self, initial_vertices, new_vertex_co):
         # Make a new BMesh
         bm = bmesh.new()
 
-
-        px = self.util.location_3d_to_region_2d_object_space(new_vertex_co)
-        view_origin, view_vector = self.util.get_view_world_space(px.x, px.y)
+        self.selection_path = []
+        end_px = self.util.location_3d_to_region_2d_object_space(new_vertex_co)
+        view_origin, view_vector = self.util.get_view_world_space(end_px.x, end_px.y)
         v0 = bm.verts.new(view_origin + view_vector)
-        v0.select_set(True)
+        # v0.select_set(True)
         for v in initial_vertices:
             # v.select_set(False)
             px = self.util.location_3d_to_region_2d_object_space(v.co)
             view_origin, view_vector = self.util.get_view_world_space(px.x, px.y)
             v1 = bm.verts.new(view_origin + view_vector)
-            v1.select_set(True)
+            # v1.select_set(True)
             edge = bm.edges.new((v0, v1))
+            self.selection_path.append((px, end_px))
 
         me = bpy.data.meshes.new("Mesh")
         bm.to_mesh(me)
@@ -187,10 +195,11 @@ class HalfKnifeOperator(bpy.types.Operator):
             return
 
         self.create_cut_obj(self.initial_vertices, self.snapped_hit)
-        # bpy.ops.mesh.knife_project()
-        # bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
-        # self.delete_cut_obj()
+        bpy.ops.mesh.knife_project()
+        bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
+        self.delete_cut_obj()
         # bpy.ops.mesh.select_all(action = 'DESELECT')
+        self.select_path()
         select_location = self.util.location_3d_to_region_2d_object_space(self.snapped_hit)
         # bpy.ops.view3d.select(location = (int(select_location.x), int(select_location.y)))
 
@@ -237,7 +246,6 @@ class HalfKnifeOperator(bpy.types.Operator):
         vert = self.initial_vertices[0]
         vert.co = self.inital_centered_hit if self._snap_to_center else self.initial_hit
         bmesh.update_edit_mesh(self.object.data, True)
-        # print(self._snap_to_center, self.initial_hit, self.inital_centered_hit)
 
     def modal(self, context, event):
         # self._shift = event.shift
@@ -311,7 +319,6 @@ class HalfKnifeOperator(bpy.types.Operator):
             if not vert:
                 return {'FINISHED'}
 
-            print(vert.co, center, self._snap_to_center)
             if self.auto_cut:
                 if self._snap_to_center:
                     vert.co = center
