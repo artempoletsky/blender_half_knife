@@ -123,7 +123,7 @@ class HalfKnifeOperator(bpy.types.Operator):
     def snap_face_preivew(self, hit, face):
         self.snap_mode = 'FACE'
         self.face = face
-        if self.snap_to_center and not self.turn_off_snapping:
+        if self._snap_to_center and not self._turn_off_snapping:
             self.snapped_hit = face.calc_center_median()
         else:
             self.snapped_hit = hit
@@ -137,7 +137,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.snap_mode = 'EDGE'
         self.edge = edge
 
-        if self.snap_to_center and not self.turn_off_snapping:
+        if self._snap_to_center and not self._turn_off_snapping:
             projected = calc_edge_center(edge)
         self.snapped_hit = projected
         return {
@@ -218,8 +218,8 @@ class HalfKnifeOperator(bpy.types.Operator):
         return batch
 
     def draw_helper_text(self):
-        shift = "On" if self.turn_off_snapping else "Off"
-        ctrl = "On" if self.snap_to_center else "Off"
+        shift = "On" if self._turn_off_snapping else "Off"
+        ctrl = "On" if self._snap_to_center else "Off"
         angle_constraint = "On" if self._angle_constraint else "Off"
         angle_constraint_text = " C: angle_constraint (" + angle_constraint + ");"
         if len(self.initial_vertices) > 1:
@@ -233,21 +233,21 @@ class HalfKnifeOperator(bpy.types.Operator):
 
     def update_initial_vertex_position(self):
         vert = self.initial_vertices[0]
-        vert.co = self.inital_centered_hit if self.snap_to_center else self.initial_hit
+        vert.co = self.inital_centered_hit if self._snap_to_center else self.initial_hit
         bmesh.update_edit_mesh(self.object.data, True)
-        # print(self.snap_to_center, self.initial_hit, self.inital_centered_hit)
+        # print(self._snap_to_center, self.initial_hit, self.inital_centered_hit)
 
     def modal(self, context, event):
         # self._shift = event.shift
         # self._ctrl =  event.ctrl
-        self.turn_off_snapping = event.shift
-        self.snap_to_center = event.ctrl
+        self._turn_off_snapping = event.shift
+        self._snap_to_center = event.ctrl
 
         if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
             # allow navigation
             return {'PASS_THROUGH'}
         elif event.type == 'Z' and event.value == 'PRESS':
-            self.cut_through = not self.cut_through
+            self._cut_through = not self._cut_through
         elif event.type == 'C' and event.value == 'PRESS':
             self._angle_constraint = not self._angle_constraint
         elif event.type in {'LEFT_CTRL'}:
@@ -264,22 +264,26 @@ class HalfKnifeOperator(bpy.types.Operator):
             self.draw.redraw()
 
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
-            self.draw.draw_end()
-            self.clear_helper_text()
+            self.finish()
             return {'CANCELLED'}
         elif event.type in {'LEFTMOUSE'}:
             self.calc_hit(context, event)
-            self.draw.draw_end()
             self.run_cut(context, event)
-            self.clear_helper_text()
+            self.finish()
             return {'FINISHED'}
 
         self.draw_helper_text()
         return {'RUNNING_MODAL'}
 
+    def finish(self):
+        self.draw.draw_end()
+        self.clear_helper_text()
+
     def invoke(self, context, event):
-        self._cut_through = False
+        self._cut_through = self.cut_through
         self._angle_constraint = False
+        self._snap_to_center = self.snap_to_center
+        self._turn_off_snapping = self.turn_off_snapping
         self.context = context
         self.object = context.edit_object
         addons_prefs = context.preferences.addons
@@ -304,8 +308,10 @@ class HalfKnifeOperator(bpy.types.Operator):
 
             if not vert:
                 return {'FINISHED'}
+
+            print(vert.co, center, self._snap_to_center)
             if self.auto_cut:
-                if self.snap_to_center:
+                if self._snap_to_center:
                     vert.co = center
                 return {'FINISHED'}
             #else snapped vertex is selected, not the new
