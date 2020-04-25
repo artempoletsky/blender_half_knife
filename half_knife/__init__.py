@@ -118,14 +118,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             'edge': [(self.get_drawing_edges(vert.co), self.prefs.cutting_edge)],
             'vert': [([vert.co], self.prefs.vertex_snap)]
         }
-
-    def get_drawing_axis(self):
-        vert = self.initial_vertices[0].co
-        face = self.initial_face
-        edge = self.initial_edge
-        v1, v2 = [v.co for v in edge.verts]
-        w = v1 - v2
-        normal = face.normal
+    def get_snap_axises(self, start, normal, w):
         axis_vector = mathutils.Vector(np.cross(normal, w)) * 20
         def rotateVector(v, w, deg):
             rad = math.radians(deg)
@@ -135,21 +128,31 @@ class HalfKnifeOperator(bpy.types.Operator):
 
         p45 = rotateVector(axis_vector, w, 45)
         n45 = rotateVector(axis_vector, w, -45)
+        return [start + n45, start + axis_vector, start + p45]
+
+    def get_drawing_axis(self):
+        vert = self.initial_vertices[0].co
+        face = self.initial_face
+        edge = self.initial_edge
+        v1, v2 = [v.co for v in edge.verts]
+        vertices = self.get_snap_axises(vert, face.normal, v1 - v2)
         axises = []
-        axises.append({
-            "verts": [{"co": vert}, {"co": vert + n45}]
-        })
-        axises.append({
-            "verts": [{"co": vert}, {"co": vert + axis_vector}]
-        })
-        axises.append({
-            "verts": [{"co": vert}, {"co": vert + p45}]
-        })
-        # print(axises)
+        for v in vertices:
+            axises.append({
+                "verts": [{"co": vert}, {"co": v}]
+            })
         return (axises, (1, 1, 1, 1))
 
-    def snap_to_axis(self, hit):
-        return hit
+    def snap_to_axis(self, hit, axises, start):
+        res_d = float("inf")
+        res_p = None
+        for a in axises:
+            p = self.util.vertex_project(hit, start, a)
+            d = (mouse - p).length
+            if d < res_d:
+                res_d = d
+                res_p = p
+        return res_p
 
     def snap_face_preivew(self, hit, face):
         self.snap_mode = 'FACE'

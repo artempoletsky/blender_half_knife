@@ -66,8 +66,7 @@ class GeometryMath:
             split_ratio = 1
         return split_ratio
 
-    def vertex_project(self, point, edge):
-        v1, v2 = [v.co for v in edge.verts]
+    def vertex_project(self, point, v1, v2):
         ap = point - v1
         ab = v2 - v1
         temp = ab * (np.dot(ap,ab) / np.dot(ab,ab))
@@ -78,7 +77,7 @@ class GeometryMath:
         v1, v2 = [v.co for v in edge.verts]
         d1 = (point - v1).length
         d2 = (point - v2).length
-        projected = self.vertex_project(point, edge)
+        projected = self.vertex_project(point, v1, v2)
         h = (point - projected).length
         # appriximately
         edge_pixel_distance = self.distance_2d(point, projected)
