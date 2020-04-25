@@ -102,6 +102,8 @@ class HalfKnifeOperator(bpy.types.Operator):
             dissolved_edges = vert.link_edges[slice(len(vert.link_edges)-2)]
             bmesh.ops.dissolve_edges(self.bmesh, edges = dissolved_edges, use_verts = False, use_face_split = False)
         bmesh.update_edit_mesh(self.object.data, True)
+        if self.snap_mode == 'FACE':
+            self.face = vert.link_faces[0]
         vert.select_set(True)
         self.bmesh.select_history.add(vert)
         return vert, center
@@ -118,24 +120,32 @@ class HalfKnifeOperator(bpy.types.Operator):
             'edge': [(self.get_drawing_edges(vert.co), self.prefs.cutting_edge)],
             'vert': [([vert.co], self.prefs.vertex_snap)]
         }
-    def get_snap_axises(self, start, normal, w):
-        axis_vector = mathutils.Vector(np.cross(normal, w)) * 20
-        def rotateVector(v, w, deg):
-            rad = math.radians(deg)
-            x1 = math.cos(rad) / v.length
-            x2 = math.sin(rad) / w.length
-            return v.length * (x1 * v + x2 * w)
+    def get_snap_axises(self, face, vert):
+        v_edges = vert.link_edges
+        edges = []
+        for e in v_edges:
+            if e in face.edges:
+                edges.append(e)
+        # print(edges)
+        v1 = edges[0].other_vert(vert).co - vert.co
+        v1.normalize()
+        v2 = edges[1].other_vert(vert).co - vert.co
+        v2.normalize()
+        v = (v1 + v2) / 2
+        if v.length == 0:
+            v = mathutils.Vector(np.cross(face.normal, v2))
+            v.normalize()
 
-        p45 = rotateVector(axis_vector, w, 45)
-        n45 = rotateVector(axis_vector, w, -45)
-        return [start + n45, start + axis_vector, start + p45]
+        n45 = (v1 + v) / 2
+        p45 = (v2 + v) / 2
+        return [vert.co + n45, vert.co + v, vert.co + p45]
 
     def get_drawing_axis(self):
         vert = self.initial_vertices[0].co
-        face = self.initial_face
-        edge = self.initial_edge
-        v1, v2 = [v.co for v in edge.verts]
-        vertices = self.get_snap_axises(vert, face.normal, v1 - v2)
+        # face = self.initial_face
+        # edge = self.initial_edge
+        # v1, v2 = [v.co for v in edge.verts]
+        vertices = self.snap_axises
         axises = []
         for v in vertices:
             axises.append({
@@ -298,6 +308,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         vert = self.initial_vertices[0]
         vert.co = self.inital_centered_hit if self._snap_to_center else self.initial_hit
         bmesh.update_edit_mesh(self.object.data, True)
+        self.snap_axises = self.get_snap_axises(self.initial_face, vert)
 
     def redraw(self, context, event):
         batch = self.calc_hit(context, event)
@@ -313,7 +324,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         # self._ctrl =  event.ctrl
         is_multiple_verts = self.is_multiple_verts
         self._turn_off_snapping = event.shift
-        self._snap_to_center = event.ctrl and not is_multiple_verts
+        # self._snap_to_center = event.ctrl and not is_multiple_verts
 
         if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
             # allow navigation
@@ -322,7 +333,13 @@ class HalfKnifeOperator(bpy.types.Operator):
             self._cut_through = not self._cut_through
         elif event.type == 'C' and event.value == 'PRESS':
             self._angle_constraint = not self._angle_constraint and not is_multiple_verts
-        elif event.type in {'LEFT_CTRL'}:
+            if self._snap_to_center:
+                self._snap_to_center = False
+                self.update_initial_vertex_position()
+                self.redraw(context, event)
+        elif event.type in {'LEFT_CTRL', 'RIGHT_CTRL'} and event.value == 'PRESS':
+            self._snap_to_center = not self._snap_to_center and not is_multiple_verts
+            self._angle_constraint = False
             if self.is_cut_from_new_vertex:
                 self.update_initial_vertex_position()
                 self.redraw(context, event)
@@ -384,17 +401,21 @@ class HalfKnifeOperator(bpy.types.Operator):
                 self.is_cut_from_new_vertex = True
                 self.initial_hit = mathutils.Vector(vert.co)
                 self.inital_centered_hit = mathutils.Vector(center)
-
-            if self.snap_mode == 'EDGE':
-                self.initial_face = self.face
-                self.initial_edge = self.edge
+            self.initial_face = self.face
+            # if self.snap_mode == 'EDGE':
+            #
+            #     self.initial_edge = self.edge
 
             self.initial_vertices = [vert]
+            vert_len = 1
+            self.snap_axises = self.get_snap_axises(self.face, vert)
 
         if self.auto_cut:
             if self.calc_hit(context, event):
                 self.run_cut(context, event)
             return {'FINISHED'}
+
+        # if vert_len == 1:
 
 
         self.draw = Draw(context, context.object.matrix_world)
