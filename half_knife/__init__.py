@@ -99,7 +99,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             return None, None
         vert, center = self.get_new_vert()
         if self.snap_mode == 'FACE':
-            dissolved_edges = vert.link_edges[slice(len(vert.link_edges)-2)]
+            dissolved_edges = vert.link_edges[slice(len(vert.link_edges) - 2)]
             bmesh.ops.dissolve_edges(self.bmesh, edges = dissolved_edges, use_verts = False, use_face_split = False)
         bmesh.update_edit_mesh(self.object.data, True)
         vert.select_set(True)
