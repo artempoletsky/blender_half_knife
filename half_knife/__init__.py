@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Half knife",
     "author": "Artem Poletsky",
-    "version": (1, 0, 0),
+    "version": (1, 1, 0),
     "blender": (2, 82, 0),
     # "location": "",
     "description": "Optimized for fast workflow knife tool",
@@ -297,12 +297,14 @@ class HalfKnifeOperator(bpy.types.Operator):
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             self.draw.draw_end()
             self.clear_helper_text()
+            context.window.cursor_modal_restore()
             return {'CANCELLED'}
         elif event.type in {'LEFTMOUSE'}:
             self.calc_hit(context, event)
             self.draw.draw_end()
             self.run_cut(context, event)
             self.clear_helper_text()
+            context.window.cursor_modal_restore()
             return {'FINISHED'}
 
         self.draw_helper_text()
@@ -356,7 +358,7 @@ class HalfKnifeOperator(bpy.types.Operator):
                 self.run_cut(context, event)
             return {'FINISHED'}
 
-
+        context.window.cursor_modal_set("KNIFE")
         self.draw = Draw(context, context.object.matrix_world)
         context.window_manager.modal_handler_add(self)
         self.draw.draw_start()
