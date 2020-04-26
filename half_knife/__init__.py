@@ -113,6 +113,14 @@ class HalfKnifeOperator(bpy.types.Operator):
         {"co": hit}]
         } for v in self.initial_vertices]
 
+    def snap_void_preivew(self, hit):
+        self.snap_mode = 'VOID'
+        self.snapped_hit = hit
+        return {
+            'edge': [(self.get_drawing_edges(hit), self.prefs.cutting_edge)],
+            'vert': [([hit], self.prefs.vertex)]
+        }
+
     def snap_vert_preivew(self, vert):
         self.snap_mode = 'VERT'
         self.snapped_hit = vert.co
@@ -120,25 +128,32 @@ class HalfKnifeOperator(bpy.types.Operator):
             'edge': [(self.get_drawing_edges(vert.co), self.prefs.cutting_edge)],
             'vert': [([vert.co], self.prefs.vertex_snap)]
         }
-    def get_snap_axises(self, face, vert):
-        v_edges = vert.link_edges
-        edges = []
-        for e in v_edges:
-            if e in face.edges:
-                edges.append(e)
-        # print(edges)
-        v1 = edges[0].other_vert(vert).co - vert.co
-        v1.normalize()
-        v2 = edges[1].other_vert(vert).co - vert.co
-        v2.normalize()
-        v = (v1 + v2) / 2
-        if v.length == 0:
-            v = mathutils.Vector(np.cross(face.normal, v2))
-            v.normalize()
 
-        n45 = (v1 + v) / 2
-        p45 = (v2 + v) / 2
-        return [vert.co + n45, vert.co + v, vert.co + p45]
+    def get_snap_axises(self, vert):
+        v_edges = vert.link_edges
+        result = []
+        for face in vert.link_faces:
+            edges = []
+            for e in v_edges:
+                if e in face.edges:
+                    edges.append(e)
+            # print(edges)
+            v1 = edges[0].other_vert(vert).co - vert.co
+            v1.normalize()
+            v2 = edges[1].other_vert(vert).co - vert.co
+            v2.normalize()
+            v = (v1 + v2) / 2
+            if v.length == 0:
+                v = mathutils.Vector(np.cross(face.normal, v2))
+                v.normalize()
+
+            n45 = (v1 + v) / 2
+            p45 = (v2 + v) / 2
+            # result.append(vert.co + n45)
+            result.append(vert.co + v)
+            # result.append(vert.co + p45)
+
+        return result
 
     def get_drawing_axis(self):
         vert = self.initial_vertices[0].co
@@ -153,12 +168,13 @@ class HalfKnifeOperator(bpy.types.Operator):
             })
         return (axises, (1, 1, 1, 1))
 
-    def snap_to_axis(self, hit, axises, start):
+    def snap_to_axis(self, hit):
         res_d = float("inf")
         res_p = None
+        start = self.initial_vertices[0].co
         for a in axises:
             p = self.util.vertex_project(hit, start, a)
-            d = (mouse - p).length
+            d = (hit - p).length
             if d < res_d:
                 res_d = d
                 res_p = p
@@ -269,11 +285,13 @@ class HalfKnifeOperator(bpy.types.Operator):
 
     def calc_hit(self, context, event):
         batch = None
+        hit = None
         # try:
-        hit, face = self.util.ray_cast_BVH(self.tree, self.bmesh, event.mouse_region_x, event.mouse_region_y)
-        # except:
-            # hit = None
-        self.hit = hit
+        if not self._angle_constraint:
+            hit, face = self.util.ray_cast_BVH(self.tree, self.bmesh, event.mouse_region_x, event.mouse_region_y)
+            # except:
+                # hit = None
+            self.hit = hit
         if hit:
             vert, edge, vertex_pixel_distance, edge_pixel_distance, projected = self.util.find_closest(hit, face)
             self.vert = vert
@@ -285,7 +303,11 @@ class HalfKnifeOperator(bpy.types.Operator):
                 batch = self.snap_edge_preivew(hit, edge, projected)
             else:
                 batch = self.snap_face_preivew(hit, face)
-
+        else:
+            hit = self.util.get_viewport_point_object_space(event.mouse_region_x, event.mouse_region_y)
+            if self._angle_constraint:
+                hit = self.snap_to_axis(hit)
+            batch = self.snap_void_preivew(hit)
         return batch
 
     def draw_helper_text(self):
@@ -343,7 +365,6 @@ class HalfKnifeOperator(bpy.types.Operator):
             if self.is_cut_from_new_vertex:
                 self.update_initial_vertex_position()
                 self.redraw(context, event)
-            # self._angle_constraint = not self._angle_constraint
         elif event.type == 'MOUSEMOVE':
             self.redraw(context, event)
 
@@ -399,7 +420,6 @@ class HalfKnifeOperator(bpy.types.Operator):
             #else snapped vertex is selected, not the new
             if self.snap_mode != 'VERT':
                 self.is_cut_from_new_vertex = True
-                self.initial_hit = mathutils.Vector(vert.co)
                 self.inital_centered_hit = mathutils.Vector(center)
             self.initial_face = self.face
             # if self.snap_mode == 'EDGE':
@@ -408,15 +428,19 @@ class HalfKnifeOperator(bpy.types.Operator):
 
             self.initial_vertices = [vert]
             vert_len = 1
-            self.snap_axises = self.get_snap_axises(self.face, vert)
+
 
         if self.auto_cut:
             if self.calc_hit(context, event):
                 self.run_cut(context, event)
             return {'FINISHED'}
 
-        # if vert_len == 1:
-
+        if vert_len == 1:
+            vert = self.initial_vertices[0]
+            self.initial_hit = mathutils.Vector(vert.co)
+            if not self.is_cut_from_new_vertex:
+                self.inital_centered_hit = self.initial_hit
+            self.snap_axises = self.get_snap_axises(vert)
 
         self.draw = Draw(context, context.object.matrix_world)
         context.window_manager.modal_handler_add(self)
