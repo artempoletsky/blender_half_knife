@@ -10,6 +10,10 @@ class GeometryMath:
         self.matrix = object.matrix_world
         self.matrix_inv = self.matrix.inverted()
 
+    def project_point_on_view(self, point):
+        point2d = self.location_3d_to_region_2d_object_space(point)
+        return self.get_viewport_point_object_space(point2d.x, point2d.y)
+
     def ray_cast_BVH(self, tree, bm, x, y):
         ray_origin_obj, ray_direction_obj = self.get_view_object_space(x, y)
         hit, normal, face_index, distance = tree.ray_cast(ray_origin_obj, ray_direction_obj)

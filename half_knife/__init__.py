@@ -150,13 +150,14 @@ class HalfKnifeOperator(bpy.types.Operator):
             n45 = (v1 + v) / 2
             p45 = (v2 + v) / 2
             # result.append(vert.co + n45)
-            result.append(vert.co + v)
+            result.append(self.util.project_point_on_view(vert.co + v))
             # result.append(vert.co + p45)
 
         return result
 
     def get_drawing_axis(self):
         vert = self.initial_vertices[0].co
+        vert = self.util.project_point_on_view(vert)
         # face = self.initial_face
         # edge = self.initial_edge
         # v1, v2 = [v.co for v in edge.verts]
@@ -171,7 +172,8 @@ class HalfKnifeOperator(bpy.types.Operator):
     def snap_to_axis(self, hit):
         res_d = float("inf")
         res_p = None
-        start = self.initial_vertices[0].co
+        start = self.util.project_point_on_view(self.initial_vertices[0].co)
+        axises = self.snap_axises
         for a in axises:
             p = self.util.vertex_project(hit, start, a)
             d = (hit - p).length
