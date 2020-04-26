@@ -229,11 +229,13 @@ class HalfKnifeOperator(bpy.types.Operator):
             return {'RUNNING_MODAL'}
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             self.draw.draw_end()
+            context.window.cursor_modal_restore()
             return {'CANCELLED'}
         elif event.type in {'LEFTMOUSE'}:
             self.calc_hit(context, event)
             self.draw.draw_end()
             self.run_cut(context, event)
+            context.window.cursor_modal_restore()
             return {'FINISHED'}
 
         return {'RUNNING_MODAL'}
@@ -268,7 +270,7 @@ class HalfKnifeOperator(bpy.types.Operator):
                 self.run_cut(context, event)
             return {'FINISHED'}
 
-
+        context.window.cursor_modal_set("KNIFE")
         self.draw = Draw(context, context.object.matrix_world)
         context.window_manager.modal_handler_add(self)
         self.draw.draw_start()
