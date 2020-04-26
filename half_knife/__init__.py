@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Half knife",
     "author": "Artem Poletsky",
-    "version": (1, 0, 0),
+    "version": (1, 1, 0),
     "blender": (2, 82, 0),
     # "location": "",
     "description": "Optimized for fast workflow knife tool",
@@ -99,7 +99,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             return None, None
         vert, center = self.get_new_vert()
         if self.snap_mode == 'FACE':
-            dissolved_edges = vert.link_edges[slice(len(vert.link_edges)-2)]
+            dissolved_edges = vert.link_edges[slice(len(vert.link_edges) - 2)]
             bmesh.ops.dissolve_edges(self.bmesh, edges = dissolved_edges, use_verts = False, use_face_split = False)
         bmesh.update_edit_mesh(self.object.data, True)
         if self.snap_mode == 'FACE':
@@ -388,12 +388,14 @@ class HalfKnifeOperator(bpy.types.Operator):
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             self.draw.draw_end()
             self.clear_helper_text()
+            context.window.cursor_modal_restore()
             return {'CANCELLED'}
         elif event.type in {'LEFTMOUSE'}:
             self.calc_hit(context, event)
             self.draw.draw_end()
             self.run_cut()
             self.clear_helper_text()
+            context.window.cursor_modal_restore()
             return {'FINISHED'}
 
         self.draw_helper_text()
@@ -453,6 +455,7 @@ class HalfKnifeOperator(bpy.types.Operator):
                 self.run_cut()
             return {'FINISHED'}
 
+
         if vert_len == 1:
             vert = self.initial_vertices[0]
             self.initial_hit = mathutils.Vector(vert.co)
@@ -461,6 +464,8 @@ class HalfKnifeOperator(bpy.types.Operator):
 
 
         self.last_hited_face = None
+
+        context.window.cursor_modal_set("KNIFE")
         self.draw = Draw(context, context.object.matrix_world)
         context.window_manager.modal_handler_add(self)
         self.draw.draw_start()
@@ -472,18 +477,28 @@ classes = (
     HalfKnifeOperator
 )
 
+def menu_func(self, context):
+    layout = self.layout
+    layout.separator()
+    # print('menu')
+    layout.operator_context = "INVOKE_REGION_WIN"
+    layout.operator(HalfKnifeOperator.bl_idname, text = HalfKnifeOperator.bl_label)
+# for i in dir(bpy.types):
+    # if "snap" in i: print(i)
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
     preferences.register_keymaps()
-
+    bpy.types.VIEW3D_MT_edit_mesh.append(menu_func)
 
 def unregister():
     preferences.unregister_keymaps()
 
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
+
+    bpy.types.VIEW3D_MT_edit_mesh.remove(menu_func)
 
 if __name__ == "__main__":
     register()
