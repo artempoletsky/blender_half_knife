@@ -370,18 +370,28 @@ classes = (
     HalfKnifeOperator
 )
 
+def menu_func(self, context):
+    layout = self.layout
+    layout.separator()
+    # print('menu')
+    layout.operator_context = "INVOKE_REGION_WIN"
+    layout.operator(HalfKnifeOperator.bl_idname, text = HalfKnifeOperator.bl_label)
+# for i in dir(bpy.types):
+    # if "snap" in i: print(i)
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
     preferences.register_keymaps()
-
+    bpy.types.VIEW3D_MT_edit_mesh.append(menu_func)
 
 def unregister():
     preferences.unregister_keymaps()
 
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
+
+    bpy.types.VIEW3D_MT_edit_mesh.remove(menu_func)
 
 if __name__ == "__main__":
     register()
