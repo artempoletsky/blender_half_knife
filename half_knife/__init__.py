@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Half knife",
     "author": "Artem Poletsky",
-    "version": (1, 0, 0),
+    "version": (1, 0, 1),
     "blender": (2, 82, 0),
     # "location": "",
     "description": "Optimized for fast workflow knife tool",
@@ -98,7 +98,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             return None
         vert = self.get_new_vert()
         if self.snap_mode == 'FACE':
-            dissolved_edges = vert.link_edges[slice(2)]
+            dissolved_edges = vert.link_edges[slice(len(vert.link_edges) - 2)]
             bmesh.ops.dissolve_edges(self.bmesh, edges = dissolved_edges, use_verts = False, use_face_split = False)
         bmesh.update_edit_mesh(self.object.data, True)
         vert.select_set(True)
