@@ -95,18 +95,25 @@ class HalfKnifeOperator(bpy.types.Operator):
             return vert, center
 
     def addVert(self, context, event):
-        if not self.calc_hit(context, event):
+        self.calc_hit(context, event)
+        if self.snap_mode == 'VOID':
             return None, None
         vert, center = self.get_new_vert()
         if self.snap_mode == 'FACE':
             dissolved_edges = vert.link_edges[slice(len(vert.link_edges) - 2)]
             bmesh.ops.dissolve_edges(self.bmesh, edges = dissolved_edges, use_verts = False, use_face_split = False)
-        bmesh.update_edit_mesh(self.object.data, True)
+
         if self.snap_mode == 'FACE':
             self.face = vert.link_faces[0]
         vert.select_set(True)
         self.bmesh.select_history.add(vert)
+        self.update_geom()
         return vert, center
+
+    def update_geom(self):
+        bmesh.update_edit_mesh(self.object.data, True)
+        self.tree = BVHTree.FromBMesh(self.bmesh)
+        self.bmesh.faces.ensure_lookup_table()
 
     def get_drawing_edges(self, hit):
         return [{"verts": [{"co": v.co},
@@ -273,14 +280,18 @@ class HalfKnifeOperator(bpy.types.Operator):
         bpy.ops.mesh.knife_project(cut_through = self._cut_through)
         bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
         self.delete_cut_obj()
-        # bpy.ops.mesh.select_all(action = 'DESELECT')
+        # # bpy.ops.mesh.select_all(action = 'DESELECT')
         if self._snap_to_center:
             self.select_path(True)
             bm = self.bmesh = bmesh.from_edit_mesh(self.object.data)
-            # bm.from_mesh(self.object.data)
+            bm.from_mesh(self.object.data)
             for v in bm.verts:
                 if v.select:
-                    edges = v.link_edges
+                    edges = []
+                    for e in v.link_edges:
+                        v0 = e.other_vert(v)
+                        if not v0.select:
+                            edges.append(e)
                     v1 = edges[0].other_vert(v)
                     v2 = edges[1].other_vert(v)
                     v.co = (v1.co + v2.co) / 2
@@ -347,7 +358,8 @@ class HalfKnifeOperator(bpy.types.Operator):
     def update_initial_vertex_position(self):
         vert = self.initial_vertices[0]
         vert.co = self.inital_centered_hit if self._snap_to_center else self.initial_hit
-        bmesh.update_edit_mesh(self.object.data, True)
+        self.update_geom()
+        # bmesh.update_edit_mesh(self.object.data, True)
         self.update_snap_axises()
 
     def redraw(self, context, event):
