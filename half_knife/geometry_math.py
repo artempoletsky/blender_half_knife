@@ -1,5 +1,6 @@
 from bpy_extras import view3d_utils
 import numpy as np
+import mathutils
 
 class GeometryMath:
 
@@ -9,6 +10,14 @@ class GeometryMath:
         self.rv3d = context.region_data
         self.matrix = object.matrix_world
         self.matrix_inv = self.matrix.inverted()
+
+    def get_view_plane(self):
+        zero = self.get_viewport_point_object_space(0, 0)
+        top_left = self.get_viewport_point_object_space(0, self.context.area.height)
+        bottom_right = self.get_viewport_point_object_space(self.context.area.width, 0)
+
+        normal = mathutils.geometry.normal(zero, top_left, bottom_right)
+        return zero, normal
 
     def project_point_on_view(self, point):
         point2d = self.location_3d_to_region_2d_object_space(point)
