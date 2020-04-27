@@ -488,7 +488,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             self.calc_hit(context, event)
             if self.snap_mode != 'VOID':
                 self.run_cut()
-            return {'FINISHED'}
+                return {'FINISHED'}
 
 
         if vert_len == 1:
