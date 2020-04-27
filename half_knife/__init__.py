@@ -352,7 +352,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         angle_constraint = "On" if self._angle_constraint else "Off"
         angle_constraint_text = " C: angle_constraint (" + angle_constraint + ");"
         snap_to_center_text = " Ctrl: snap to center (" + snap_to_center + ");"
-        if self.is_multiple_verts:
+        if self.is_multiple_verts or self.virtual_start:
             angle_constraint_text = ""
             snap_to_center_text = ""
 
@@ -394,10 +394,14 @@ class HalfKnifeOperator(bpy.types.Operator):
         elif event.type == 'Z' and event.value == 'PRESS':
             self._cut_through = not self._cut_through
         elif event.type == 'C' and event.value == 'PRESS':
-            self._angle_constraint = not self._angle_constraint and not is_multiple_verts and not is_virtual_start
+            if  is_multiple_verts or is_virtual_start:
+                return {'RUNNING_MODAL'}
+            self._angle_constraint = not self._angle_constraint
             self.update_snap_axises()
         elif event.type in {'LEFT_CTRL', 'RIGHT_CTRL'} and event.value == 'PRESS':
-            self._snap_to_center = not self._snap_to_center and not is_multiple_verts and not is_virtual_start
+            if  is_multiple_verts or is_virtual_start:
+                return {'RUNNING_MODAL'}
+            self._snap_to_center = not self._snap_to_center
             # self._angle_constraint = False
             if self.is_cut_from_new_vertex:
                 self.update_initial_vertex_position()
