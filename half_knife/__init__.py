@@ -274,6 +274,11 @@ class HalfKnifeOperator(bpy.types.Operator):
         bpy.ops.object.delete({"selected_objects": [self.cut_obj]})
         bpy.ops.object.editmode_toggle()
 
+    def delete_vitrual_vertex(self):
+        if self.virtual_start:
+            bmesh.ops.delete(self.bmesh, geom = [self.virtual_start], context = 'VERTS')
+            self.update_geom()
+
     def run_cut(self):
 #        v = self.bmesh.verts.new()
 #        v.co = self.new_vert
@@ -281,9 +286,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             # return
 
         self.create_cut_obj(self.initial_vertices, self.snapped_hit)
-        if self.virtual_start:
-            bmesh.ops.delete(self.bmesh, geom = [self.virtual_start], context = 'VERTS')
-            self.update_geom()
+        self.delete_vitrual_vertex()
         bpy.ops.mesh.knife_project(cut_through = self._cut_through)
         bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
         self.delete_cut_obj()
@@ -412,14 +415,17 @@ class HalfKnifeOperator(bpy.types.Operator):
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             self.draw.draw_end()
             self.clear_helper_text()
-            context.window.cursor_modal_restore()
+            self.delete_vitrual_vertex()
+            if not self.prefs.disable_knife_icon:
+                context.window.cursor_modal_restore()
             return {'CANCELLED'}
         elif event.type in {'LEFTMOUSE'}:
             self.calc_hit(context, event)
             self.draw.draw_end()
             self.run_cut()
             self.clear_helper_text()
-            context.window.cursor_modal_restore()
+            if not self.prefs.disable_knife_icon:
+                context.window.cursor_modal_restore()
             return {'FINISHED'}
 
         self.draw_helper_text()
@@ -451,20 +457,21 @@ class HalfKnifeOperator(bpy.types.Operator):
 
         self.is_cut_from_new_vertex = False
         self.virtual_start = None
+        auto_cut = self.auto_cut
         if vert_len == 0:
             vert, center = self.addVert(context, event)
 
             if not vert:
                 return {'FINISHED'}
 
-            if self.auto_cut:
-                if self.virtual_start:
-                    return {'FINISHED'}
+            if auto_cut:
+                # if self.virtual_start:
+                    # return {'FINISHED'}
                 if self._snap_to_center:
                     vert.co = center
-                return {'FINISHED'}
+                # return {'FINISHED'}
             #else snapped vertex is selected, not the new
-            if self.snap_mode != 'VERT':
+            if self.snap_mode != 'VERT' and not self.virtual_start:
                 self.is_cut_from_new_vertex = True
                 self.inital_centered_hit = mathutils.Vector(center)
             if not self.virtual_start:
@@ -477,7 +484,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             vert_len = 1
 
 
-        if self.auto_cut:
+        if auto_cut and not self.virtual_start:
             self.calc_hit(context, event)
             if self.snap_mode != 'VOID':
                 self.run_cut()
@@ -493,7 +500,8 @@ class HalfKnifeOperator(bpy.types.Operator):
 
         self.last_hited_face = None
 
-        context.window.cursor_modal_set("KNIFE")
+        if not self.prefs.disable_knife_icon:
+            context.window.cursor_modal_set("KNIFE")
         self.draw = Draw(context, context.object.matrix_world)
         context.window_manager.modal_handler_add(self)
         self.draw.draw_start()

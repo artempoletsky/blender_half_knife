@@ -13,6 +13,8 @@ class HalfKnifePreferencesDefaults():
     vertex_snap = tuple(user_prefs.handle_sel_auto) + (1,)
     edge_snap = tuple(user_prefs.handle_sel_auto) + (1,)
 
+    disable_knife_icon = False
+
 
     # cutting_edge = (0.603827, 0.000000, 0.318547, 1.000000)
     # vertex = (0.051269, 0.527115, 0.029557, 1.000000)
@@ -30,6 +32,8 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
             ("KEYMAPS", "Keymaps", ""),
             ("COLORS", "Colors", ""),],
         default="GENERAL")
+
+    disable_knife_icon : bpy.props.BoolProperty(name = "Disable knife icon", default = defaults.disable_knife_icon)
 
     snap_vertex_distance : bpy.props.IntProperty(name = "Vertex snap distance (pixels)", default = defaults.snap_vertex_distance)
     snap_edge_distance : bpy.props.IntProperty(name = "Edge snap distance (pixels)", default = defaults.snap_edge_distance)
@@ -87,6 +91,9 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
         col.label(text="Snap settings:")
         col.prop(self, "snap_vertex_distance")
         col.prop(self, "snap_edge_distance")
+
+        col.separator()
+        col.prop(self, "disable_knife_icon")
 
     def draw_colors(self, layout):
         layout.use_property_split = True
