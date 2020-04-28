@@ -330,9 +330,9 @@ class HalfKnifeOperator(bpy.types.Operator):
             self.vert = vert
             self.edge = edge
             self.face = face
-            if vertex_pixel_distance < self.prefs.snap_vertex_distance and not self.turn_off_snapping:
+            if vertex_pixel_distance < self.prefs.snap_vertex_distance and not self._turn_off_snapping:
                 batch = self.snap_vert_preivew(vert)
-            elif edge_pixel_distance < self.prefs.snap_edge_distance and not self.turn_off_snapping:
+            elif edge_pixel_distance < self.prefs.snap_edge_distance and not self._turn_off_snapping:
                 batch = self.snap_edge_preivew(hit, edge, projected)
             else:
                 batch = self.snap_face_preivew(hit, face)
@@ -388,7 +388,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         # self._ctrl =  event.ctrl
         is_multiple_verts = self.is_multiple_verts
         is_virtual_start = bool(self.virtual_start)
-        self._turn_off_snapping = event.shift
+        # self._turn_off_snapping = event.shift
         # self._snap_to_center = event.ctrl and not is_multiple_verts
 
         if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
@@ -410,6 +410,8 @@ class HalfKnifeOperator(bpy.types.Operator):
             if self.is_cut_from_new_vertex:
                 self.update_initial_vertex_position()
                 self.redraw(context, event)
+        elif event.type in {'LEFT_SHIFT', 'RIGHT_SHIFT'} and event.value == 'PRESS':
+            self._turn_off_snapping = not self._turn_off_snapping
         elif event.type == 'MOUSEMOVE':
             self.redraw(context, event)
 
