@@ -184,7 +184,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         axises.append({
             "verts": [{"co": a[0]}, {"co": a[1]}]
         })
-        return (axises, (1, 1, 1, 1))
+        return (axises, self.prefs.angle_constraint_axis)
 
     def snap_to_axis(self, hit):
         res_d = float("inf")
@@ -377,6 +377,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         if batch:
             if self._angle_constraint:
                 batch['edge'].insert(0, self.get_drawing_axis())
+                batch['face'] = [(self.last_hited_face, self.prefs.angle_constraint_active_face)]
             self.draw.batch(batch)
         else:
             self.draw.clear()

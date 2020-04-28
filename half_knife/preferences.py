@@ -13,6 +13,9 @@ class HalfKnifePreferencesDefaults():
     vertex_snap = tuple(user_prefs.handle_sel_auto) + (1,)
     edge_snap = tuple(user_prefs.handle_sel_auto) + (1,)
 
+    angle_constraint_active_face =   tuple(user_prefs.handle_sel_auto) + (.4,)
+    angle_constraint_axis = (1, 1, 1, 1)
+
     disable_knife_icon = False
 
 
