@@ -69,6 +69,20 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
         min=0,
         max=1)
 
+    angle_constraint_active_face : bpy.props.FloatVectorProperty(name="Angle constraint active face",
+        default=defaults.angle_constraint_active_face,
+        size=4,
+        subtype="COLOR",
+        min=0,
+        max=1)
+
+    angle_constraint_axis : bpy.props.FloatVectorProperty(name="Angle constraint axis",
+        default=defaults.angle_constraint_axis,
+        size=4,
+        subtype="COLOR",
+        min=0,
+        max=1)
+
     def draw(self, context):
         layout = self.layout
 
@@ -106,6 +120,8 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
         flow.prop(self, "vertex")
         flow.prop(self, "vertex_snap")
         flow.prop(self, "edge_snap")
+        flow.prop(self, "angle_constraint_active_face")
+        flow.prop(self, "angle_constraint_axis")
 
     def draw_keymaps(self, layout):
         row = layout.row()
