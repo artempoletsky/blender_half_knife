@@ -284,14 +284,14 @@ class HalfKnifeOperator(bpy.types.Operator):
 #        v.co = self.new_vert
         # if not self.hit:
             # return
-
+        is_multiple_verts = len(self.initial_vertices) > 1
         self.create_cut_obj(self.initial_vertices, self.snapped_hit)
         self.delete_vitrual_vertex()
         bpy.ops.mesh.knife_project(cut_through = self._cut_through)
         bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
         self.delete_cut_obj()
         # # bpy.ops.mesh.select_all(action = 'DESELECT')
-        if self._snap_to_center:
+        if self._snap_to_center and not is_multiple_verts:
             self.select_path(True)
             self.bmesh.free()
             bm = self.bmesh = bmesh.from_edit_mesh(self.object.data)
@@ -403,8 +403,8 @@ class HalfKnifeOperator(bpy.types.Operator):
             self._angle_constraint = not self._angle_constraint
             self.update_snap_axises()
         elif event.type in {'LEFT_CTRL', 'RIGHT_CTRL'} and event.value == 'PRESS':
-            if  is_multiple_verts or is_virtual_start:
-                return {'RUNNING_MODAL'}
+            # if  is_multiple_verts or is_virtual_start:
+            #     return {'RUNNING_MODAL'}
             self._snap_to_center = not self._snap_to_center
             # self._angle_constraint = False
             if self.is_cut_from_new_vertex:
