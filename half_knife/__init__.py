@@ -225,18 +225,19 @@ class HalfKnifeOperator(bpy.types.Operator):
             'vert': [([projected], self.prefs.vertex)]
         }
 
-    def select_path(self, exclude_ends):
+    def select_path(self, only_ends = False, mode = 'ADD'):
         for start, end in self.selection_path:
-            se = end - start
-            l = int(se.length / 4)
-            range_start = 0
-            range_end = l + 1
-            if exclude_ends:
-                range_start = 1
-                range_end = l
-            for i in range(range_start, range_end):
-                p = start + (i / l) * se
-                bpy.ops.view3d.select_circle(x = int(p.x), y = int(p.y), radius = 2, wait_for_input = False, mode = 'ADD')
+            if only_ends:
+                bpy.ops.view3d.select_circle(x = int(start.x), y = int(start.y), radius = 2, wait_for_input = False, mode = mode)
+                bpy.ops.view3d.select_circle(x = int(end.x), y = int(end.y), radius = 2, wait_for_input = False, mode = mode)
+            else:
+                se = end - start
+                l = int(se.length / 4)
+                range_start = 0
+                range_end = l + 1
+                for i in range(range_start, range_end):
+                    p = start + (i / l) * se
+                    bpy.ops.view3d.select_circle(x = int(p.x), y = int(p.y), radius = 2, wait_for_input = False, mode = mode)
 
     def create_cut_obj(self, initial_vertices, new_vertex_co):
         # Make a new BMesh
@@ -287,24 +288,42 @@ class HalfKnifeOperator(bpy.types.Operator):
         is_multiple_verts = len(self.initial_vertices) > 1
         self.create_cut_obj(self.initial_vertices, self.snapped_hit)
         self.delete_vitrual_vertex()
+        if self._snap_to_center and not is_multiple_verts:
+            self.select_path()
+            old_verts = list(filter(lambda v: v.select, self.bmesh.verts))
+            old_verts_coords = [v.co for v in old_verts]
+            print(old_verts_coords)
+
         bpy.ops.mesh.knife_project(cut_through = self._cut_through)
         bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
         self.delete_cut_obj()
+        def compareVectorsApprox(v1, v2, delta = 0.001):
+            d = v1 - v2
+            return abs(d.x) < delta and abs(d.y) < delta and abs(d.z) < delta
+        def coord_in_list(co, list):
+            for c in list:
+                if compareVectorsApprox(c, co):
+                    return True
+            return False
         # # bpy.ops.mesh.select_all(action = 'DESELECT')
         if self._snap_to_center and not is_multiple_verts:
-            self.select_path(True)
             self.bmesh.free()
             bm = self.bmesh = bmesh.from_edit_mesh(self.object.data)
-            for v in bm.verts:
-                if v.select:
-                    edges = []
-                    for e in v.link_edges:
-                        v0 = e.other_vert(v)
-                        if not v0.select:
-                            edges.append(e)
-                    v1 = edges[0].other_vert(v)
-                    v2 = edges[1].other_vert(v)
-                    v.co = (v1.co + v2.co) / 2
+            self.select_path()
+            new_verts = list(filter(lambda v: v.select, self.bmesh.verts))
+            self.select_path(only_ends = True, mode = 'SUB')
+            active_verts = list(filter(lambda v: v.select and not coord_in_list(v.co, old_verts_coords), new_verts))
+            # print(new_verts)
+
+            for v in active_verts:
+                edges = []
+                for e in v.link_edges:
+                    v0 = e.other_vert(v)
+                    if not v0 in new_verts:
+                        edges.append(e)
+                v1 = edges[0].other_vert(v)
+                v2 = edges[1].other_vert(v)
+                v.co = (v1.co + v2.co) / 2
 
         bmesh.update_edit_mesh(self.object.data, True)
         select_location = self.util.location_3d_to_region_2d_object_space(self.snapped_hit)
