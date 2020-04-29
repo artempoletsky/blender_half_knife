@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Half knife",
     "author": "Artem Poletsky",
-    "version": (1, 2, 0),
+    "version": (1, 2, 1),
     "blender": (2, 82, 0),
     # "location": "",
     "description": "Optimized for fast workflow knife tool",
@@ -337,6 +337,8 @@ class HalfKnifeOperator(bpy.types.Operator):
                     v0 = e.other_vert(v)
                     if not v0 in new_verts:
                         edges.append(e)
+                if len(edges) != 2:
+                    continue
                 v1 = edges[0].other_vert(v)
                 v2 = edges[1].other_vert(v)
                 v.co = (v1.co + v2.co) / 2
