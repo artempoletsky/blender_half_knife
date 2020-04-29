@@ -148,15 +148,22 @@ class HalfKnifeOperator(bpy.types.Operator):
         def createLine(vert_co, vector, face):
             v = vector * 20
             return self.util.project_point_on_view(vert_co), self.util.project_point_on_view(vert_co + vector), face, vert_co - v, vert_co + v
+        self.snap_axises_highlight = []
         for face in vert.link_faces:
             edges = []
             for e in v_edges:
                 if e in face.edges:
                     edges.append(e)
+            highlightV1 = edges[0].other_vert(vert).co
+            highlightV2 = edges[1].other_vert(vert).co
+            highlightE1 = edges[0]
+            highlightE2 = edges[1]
+            highlightFace = face
+            self.snap_axises_highlight.append((highlightFace, highlightE1, highlightE2, highlightV1, highlightV2))
             # print(edges)
-            v1 = edges[0].other_vert(vert).co - vert.co
+            v1 = highlightV1 - vert.co
             v1.normalize()
-            v2 = edges[1].other_vert(vert).co - vert.co
+            v2 = highlightV2 - vert.co
             v2.normalize()
             v = (v1 + v2) / 2
             # print(v.length)
@@ -173,19 +180,29 @@ class HalfKnifeOperator(bpy.types.Operator):
             self.last_hited_face = vert.link_faces[0]
         self.snap_axises = result
 
-    def get_drawing_axis(self):
-        # vert = self.initial_vertices[0].co
-        # vert = self.util.project_point_on_view(vert)
-        # face = self.initial_face
-        # edge = self.initial_edge
-        # v1, v2 = [v.co for v in edge.verts]
+    def draw_angle_constraint(self, batch):
         a = self.active_axis
         axises = []
         # for v, face in vertices:
         axises.append({
             "verts": [{"co": a[0]}, {"co": a[1]}]
         })
-        return (axises, self.prefs.angle_constraint_axis)
+        batch['edge'].insert(0, (axises, self.prefs.angle_constraint_axis))
+        highlight_data = None
+        for d in self.snap_axises_highlight:
+            if d[0] == self.last_hited_face:
+                highlight_data = d
+                break
+        if highlight_data:
+            e1 = edge_to_dict(highlight_data[1])
+            e2 = edge_to_dict(highlight_data[2])
+            v1 = highlight_data[3]
+            v2 = highlight_data[4]
+            batch['edge'].insert(0, ([e1, e2], self.prefs.edge_snap))
+            batch['vert'].insert(0, ([v1, v2], self.prefs.vertex_snap))
+        # batch['edge'].insert(0, (axises, self.prefs.angle_constraint_axis))
+        batch['face'] = [(self.last_hited_face, self.prefs.angle_constraint_active_face)]
+        return batch
 
     def snap_to_axis(self, hit):
         res_d = float("inf")
@@ -400,8 +417,8 @@ class HalfKnifeOperator(bpy.types.Operator):
         batch = self.calc_hit(context, event)
         if batch:
             if self._angle_constraint:
-                batch['edge'].insert(0, self.get_drawing_axis())
-                batch['face'] = [(self.last_hited_face, self.prefs.angle_constraint_active_face)]
+                batch = self.draw_angle_constraint(batch)
+
             self.draw.batch(batch)
         else:
             self.draw.clear()
