@@ -71,6 +71,7 @@ class HalfKnifeOperator(bpy.types.Operator):
 
     auto_cut: bpy.props.BoolProperty(name="Cut without preview", default=False)
     snap_to_center: bpy.props.BoolProperty(name="Snap to center", default=False)
+    snap_to_center_alternate: bpy.props.BoolProperty(name="Snap to center of end points only", default=False)
     cut_through: bpy.props.BoolProperty(name="Cut through", default=False)
     turn_off_snapping: bpy.props.BoolProperty(name="Turn off snapping", default=False)
 
@@ -288,7 +289,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         is_multiple_verts = len(self.initial_vertices) > 1
         self.create_cut_obj(self.initial_vertices, self.snapped_hit)
         self.delete_vitrual_vertex()
-        if self._snap_to_center and not is_multiple_verts:
+        if self._snap_to_center and not is_multiple_verts and not self._snap_to_center_alternate:
             self.select_path()
             old_verts = list(filter(lambda v: v.select, self.bmesh.verts))
             old_verts_coords = [v.co for v in old_verts]
@@ -306,7 +307,7 @@ class HalfKnifeOperator(bpy.types.Operator):
                     return True
             return False
         # # bpy.ops.mesh.select_all(action = 'DESELECT')
-        if self._snap_to_center and not is_multiple_verts:
+        if self._snap_to_center and not is_multiple_verts and not self._snap_to_center_alternate:
             self.bmesh.free()
             bm = self.bmesh = bmesh.from_edit_mesh(self.object.data)
             self.select_path()
@@ -371,15 +372,19 @@ class HalfKnifeOperator(bpy.types.Operator):
     def draw_helper_text(self):
         shift = "On" if self._turn_off_snapping else "Off"
         snap_to_center = "On" if self._snap_to_center else "Off"
+        snap_to_center_alternate = "On" if self._snap_to_center_alternate else "Off"
         angle_constraint = "On" if self._angle_constraint else "Off"
         angle_constraint_text = " C: angle_constraint (" + angle_constraint + ");"
         snap_to_center_text = " Ctrl: snap to center (" + snap_to_center + ");"
-        if self.is_multiple_verts or self.virtual_start:
+        snap_to_center_alternate_text = " Alt: snap to center of end points only (" + snap_to_center_alternate + ");"
+        if self.is_multiple_verts:
             angle_constraint_text = ""
             snap_to_center_text = ""
+        if self.virtual_start:
+            angle_constraint_text = ""
 
         cut_through = "On" if self._cut_through else "Off"
-        self.context.area.header_text_set("Shift: turn off snapping(" + shift + ");" + snap_to_center_text + angle_constraint_text + " Z: cut_through: (" + cut_through + ")")
+        self.context.area.header_text_set("Shift: turn off snapping(" + shift + ");" + snap_to_center_text + angle_constraint_text + snap_to_center_alternate_text + " Z: cut_through: (" + cut_through + ")")
 
     def clear_helper_text(self):
         self.context.area.header_text_set(None)
@@ -422,10 +427,16 @@ class HalfKnifeOperator(bpy.types.Operator):
             self._angle_constraint = not self._angle_constraint
             self.update_snap_axises()
         elif event.type in {'LEFT_CTRL', 'RIGHT_CTRL'} and event.value == 'PRESS':
-            # if  is_multiple_verts or is_virtual_start:
-            #     return {'RUNNING_MODAL'}
+
             self._snap_to_center = not self._snap_to_center
-            # self._angle_constraint = False
+            if not self._snap_to_center:
+                self._snap_to_center_alternate = False
+            if self.is_cut_from_new_vertex:
+                self.update_initial_vertex_position()
+                self.redraw(context, event)
+        elif event.type in {'LEFT_ALT', 'RIGHT_ALT'} and event.value == 'PRESS':
+            self._snap_to_center_alternate = not self._snap_to_center_alternate
+            self._snap_to_center = True
             if self.is_cut_from_new_vertex:
                 self.update_initial_vertex_position()
                 self.redraw(context, event)
@@ -457,6 +468,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         self._cut_through = self.cut_through
         self._angle_constraint = False
         self._snap_to_center = self.snap_to_center
+        self._snap_to_center_alternate = self.snap_to_center_alternate
         self._turn_off_snapping = self.turn_off_snapping
         self.context = context
         self.object = context.edit_object

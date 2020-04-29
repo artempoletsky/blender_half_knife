@@ -46,20 +46,6 @@ class Draw:
     def clear(self):
         self.batches = []
 
-    # def map_to_color(self, elems):
-    #     colors = []
-    #     result = []
-    #     color_index = 0
-    #     for e, color in val:
-    #         if color in colors:
-    #             color_index = colors.index(color)
-    #             result[i].append(e)
-    #         else:
-    #             color_index = len(colors)
-    #             colors.append(color)
-    #             result.append([e])
-    #     return colors, result
-
     def batch(self, dict):
         self.batches = []
         for key, val in dict.items():
