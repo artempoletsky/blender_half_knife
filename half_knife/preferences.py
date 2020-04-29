@@ -132,7 +132,6 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
         wm = bpy.context.window_manager
         kc = wm.keyconfigs.addon
         km = kc.keymaps['Mesh']
-        # print(km)
         for kmi in km.keymap_items:
             if kmi.idname in {'mesh.half_knife_operator', 'mesh.knife_tool'}:
                 col.context_pointer_set("keymap", km)

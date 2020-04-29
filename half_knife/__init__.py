@@ -160,13 +160,12 @@ class HalfKnifeOperator(bpy.types.Operator):
             highlightE2 = edges[1]
             highlightFace = face
             self.snap_axises_highlight.append((highlightFace, highlightE1, highlightE2, highlightV1, highlightV2))
-            # print(edges)
+
             v1 = highlightV1 - vert.co
             v1.normalize()
             v2 = highlightV2 - vert.co
             v2.normalize()
             v = (v1 + v2) / 2
-            # print(v.length)
             if v.length < 0.001:
                 v = mathutils.Vector(np.cross(face.normal, v2))
                 v.normalize()
@@ -310,7 +309,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             self.select_path()
             old_verts = list(filter(lambda v: v.select, self.bmesh.verts))
             old_verts_coords = [v.co for v in old_verts]
-            print(old_verts_coords)
+
 
         bpy.ops.mesh.knife_project(cut_through = self._cut_through)
         bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
@@ -331,7 +330,6 @@ class HalfKnifeOperator(bpy.types.Operator):
             new_verts = list(filter(lambda v: v.select, self.bmesh.verts))
             self.select_path(only_ends = True, mode = 'SUB')
             active_verts = list(filter(lambda v: v.select and not coord_in_list(v.co, old_verts_coords), new_verts))
-            # print(new_verts)
 
             for v in active_verts:
                 edges = []
@@ -567,11 +565,9 @@ classes = (
 def menu_func(self, context):
     layout = self.layout
     layout.separator()
-    # print('menu')
     layout.operator_context = "INVOKE_REGION_WIN"
     layout.operator(HalfKnifeOperator.bl_idname, text = HalfKnifeOperator.bl_label)
-# for i in dir(bpy.types):
-    # if "snap" in i: print(i)
+
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
