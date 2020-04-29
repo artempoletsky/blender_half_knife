@@ -130,7 +130,7 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
         col.label(text="Keymap settings:")
 
         wm = bpy.context.window_manager
-        kc = wm.keyconfigs.user
+        kc = wm.keyconfigs.addon
         km = kc.keymaps['Mesh']
         # print(km)
         for kmi in km.keymap_items:
