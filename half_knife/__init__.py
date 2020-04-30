@@ -348,7 +348,8 @@ class HalfKnifeOperator(bpy.types.Operator):
 
         bmesh.update_edit_mesh(self.object.data, True)
         select_location = self.util.location_3d_to_region_2d_object_space(self.snapped_hit)
-        bpy.ops.view3d.select(location = (int(select_location.x), int(select_location.y)))
+        if select_location:
+            bpy.ops.view3d.select(location = (int(select_location.x), int(select_location.y)))
 
 
     def select_only(self, bmesh_geom):

@@ -154,7 +154,7 @@ def register_keymaps():
             {"space_type": 'EMPTY', "region_type": 'WINDOW'},
             {"items": [
                 ("mesh.half_knife_operator", {"type": 'K', "value": 'PRESS'},
-                 {"properties": [("auto_cut", False)],
+                 {"properties": [("auto_cut", False), ("snap_to_center", False), ("snap_to_center_alternate", False), ("cut_through", False), ("turn_off_snapping", False)],
                   "active":True}),
             ]},
         ),
@@ -164,7 +164,7 @@ def register_keymaps():
            {"space_type": 'EMPTY', "region_type": 'WINDOW'},
            {"items": [
                ("mesh.half_knife_operator", {"type": 'K', "value": 'PRESS', "shift": True},
-                {"properties": [("auto_cut", True)],
+                {"properties": [("auto_cut", True), ("snap_to_center", False), ("snap_to_center_alternate", False), ("cut_through", False), ("turn_off_snapping", False)],
                  "active":True}),
            ]},
        ),
