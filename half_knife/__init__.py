@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Half knife",
     "author": "Artem Poletsky",
-    "version": (1, 2, 2),
+    "version": (1, 2, 3),
     "blender": (2, 82, 0),
     # "location": "",
     "description": "Optimized for fast workflow knife tool",
@@ -250,6 +250,9 @@ class HalfKnifeOperator(bpy.types.Operator):
             else:
                 se = end - start
                 l = int(se.length / 4)
+                if l == 0:
+                    bpy.ops.view3d.select_circle(x = int(start.x), y = int(start.y), radius = 2, wait_for_input = False, mode = mode)
+                    return
                 range_start = 0
                 range_end = l + 1
                 for i in range(range_start, range_end):
