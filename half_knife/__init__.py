@@ -316,7 +316,8 @@ class HalfKnifeOperator(bpy.types.Operator):
 
         bpy.ops.mesh.knife_project(cut_through = self._cut_through)
         bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
-        self.delete_cut_obj()
+        if not self._debug_keep_cut_obj:
+            self.delete_cut_obj()
         def compareVectorsApprox(v1, v2, delta = 0.001):
             d = v1 - v2
             return abs(d.x) < delta and abs(d.y) < delta and abs(d.z) < delta
@@ -329,10 +330,11 @@ class HalfKnifeOperator(bpy.types.Operator):
         if self._snap_to_center and not is_multiple_verts and not self._snap_to_center_alternate:
             self.bmesh.free()
             bm = self.bmesh = bmesh.from_edit_mesh(self.object.data)
+            # bm.verts.ensure_lookup_table()
             self.select_path()
-            new_verts = list(filter(lambda v: v.select, self.bmesh.verts))
+            new_verts = [v for v in bm.verts if v.select]
             self.select_path(only_ends = True, mode = 'SUB')
-            active_verts = list(filter(lambda v: v.select and not coord_in_list(v.co, old_verts_coords), new_verts))
+            active_verts = [v for v in new_verts if v.select and not coord_in_list(v.co, old_verts_coords)]
 
             for v in active_verts:
                 edges = []
@@ -491,6 +493,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         self._snap_to_center = self.snap_to_center
         self._snap_to_center_alternate = self.snap_to_center_alternate
         self._turn_off_snapping = self.turn_off_snapping
+        self._debug_keep_cut_obj = False
         self.context = context
         self.object = context.edit_object
         addons_prefs = context.preferences.addons
