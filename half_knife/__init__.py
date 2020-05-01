@@ -582,12 +582,12 @@ def register():
     bpy.types.VIEW3D_MT_edit_mesh.append(menu_func)
 
 def unregister():
-    preferences.unregister_keymaps()
-
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
     bpy.types.VIEW3D_MT_edit_mesh.remove(menu_func)
+
+    preferences.unregister_keymaps()
 
 if __name__ == "__main__":
     register()

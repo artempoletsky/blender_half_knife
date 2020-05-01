@@ -131,15 +131,20 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
 
         wm = bpy.context.window_manager
         kc = wm.keyconfigs.addon
-        km = kc.keymaps['Mesh']
+        km = find_keymap(kc)
         for kmi in km.keymap_items:
-            if kmi.idname in {'mesh.half_knife_operator', 'mesh.knife_tool'}:
-                col.context_pointer_set("keymap", km)
-                rna_keymap_ui.draw_kmi(["ADDON", "USER", "DEFAULT"], kc, km, kmi, col, 0)
-
-addon_keymaps = []
+            # if kmi.idname in {'mesh.half_knife_operator', 'mesh.knife_tool'}:
+            col.context_pointer_set("keymap", km)
+            rna_keymap_ui.draw_kmi(["ADDON", "USER", "DEFAULT"], kc, km, kmi, col, 0)
 
 from bl_keymap_utils.io import keyconfig_init_from_data
+
+def find_keymap(cfg):
+    km = None
+    for item in cfg.keymaps:
+        if item.bl_owner_id == 'half_knife':
+            km = item
+    return km
 
 def register_keymaps():
 
@@ -148,48 +153,44 @@ def register_keymaps():
     kc_addonconf = keyconfigs.addon
 
 
-    keyconfig_init_from_data(kc_addonconf, [
-         (
-            "Mesh",
-            {"space_type": 'EMPTY', "region_type": 'WINDOW'},
-            {"items": [
-                ("mesh.half_knife_operator", {"type": 'K', "value": 'PRESS'},
-                 {"properties": [("auto_cut", False), ("snap_to_center", False), ("snap_to_center_alternate", False), ("cut_through", False), ("turn_off_snapping", False)],
-                  "active":True}),
-            ]},
-        ),
+    km = find_keymap(kc_addonconf)
+    if km:
+        return
 
-        (
-           "Mesh",
-           {"space_type": 'EMPTY', "region_type": 'WINDOW'},
-           {"items": [
-               ("mesh.half_knife_operator", {"type": 'K', "value": 'PRESS', "shift": True},
-                {"properties": [("auto_cut", True), ("snap_to_center", False), ("snap_to_center_alternate", False), ("cut_through", False), ("turn_off_snapping", False)],
-                 "active":True}),
-           ]},
-       ),
+    km = kc_addonconf.keymaps.new(name="3D View Generic", space_type='VIEW_3D', region_type='WINDOW')
+    km.bl_owner_id = 'half_knife'
+    # print(km.bl_owner_id)
+    # setattr(km, 'half_knife', True)
+    # km.half_knife = True
+    kmi = km.keymap_items.new("mesh.half_knife_operator", 'K', 'PRESS')
+    kmi.properties.auto_cut = False
+    kmi.properties.snap_to_center = False
+    kmi.properties.snap_to_center_alternate = False
+    kmi.properties.cut_through = False
+    kmi.properties.turn_off_snapping = False
 
-        (
-           "Mesh",
-           {"space_type": 'EMPTY', "region_type": 'WINDOW'},
-           {"items": [
-               ("mesh.knife_tool", {"type": 'K', "value": 'PRESS', "alt": True},
-                {"properties": [],
-                 "active":True}),
-           ]},
-       ),
-    ])
+    kmi = km.keymap_items.new("mesh.half_knife_operator", 'K', 'PRESS')
+    kmi.shift = True
+    kmi.properties.auto_cut = True
+    kmi.properties.snap_to_center = False
+    kmi.properties.snap_to_center_alternate = False
+    kmi.properties.cut_through = False
+    kmi.properties.turn_off_snapping = False
 
-    # keyconfig_init_from_data(kc_defaultconf, keys.generate_empty_snap_utilities_tools_keymaps())
-    # keyconfig_init_from_data(kc_addonconf, keys.generate_snap_utilities_keymaps())
+
+    kmi = km.keymap_items.new("mesh.knife_tool", 'K', 'PRESS')
+    kmi.alt = True
+
 
 def unregister_keymaps():
     keyconfigs = bpy.context.window_manager.keyconfigs
     kc_addonconf = keyconfigs.addon
 
-    km = kc_addonconf.keymaps['Mesh']
+    km = find_keymap(kc_addonconf)
+    if km:
+        kc_addonconf.keymaps.remove(km)
 
-    for kmi in km.keymap_items:
-        if kmi.idname in {'mesh.half_knife_operator', 'mesh.knife_tool'} :
-            km.keymap_items.remove(kmi)
+    # for kmi in km.keymap_items:
+    #     if kmi.idname in {'mesh.half_knife_operator', 'mesh.knife_tool'} :
+    #         km.keymap_items.remove(kmi)
     return
