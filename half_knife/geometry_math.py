@@ -80,6 +80,8 @@ class GeometryMath:
         return split_ratio
 
     def vertex_project(self, point, v1, v2):
+        if v1 == v2:
+            return v1
         ap = point - v1
         ab = v2 - v1
         temp = ab * (np.dot(ap,ab) / np.dot(ab,ab))
@@ -111,7 +113,12 @@ class GeometryMath:
         vert = None
         projected = None
         for e in face.edges:
-            dRes = self.distance_to_edge(point, e)
+            try:
+                dRes = self.distance_to_edge(point, e)
+            except Exception as ex:
+                e.select_set(True)
+                raise ex
+
             if dRes[0] < edge_dist:
                 edge_dist = dRes[0]
                 edge = e
