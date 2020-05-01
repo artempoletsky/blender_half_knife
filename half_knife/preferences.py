@@ -1,7 +1,9 @@
 
-import bpy
+import bpy, _thread, time
 import rna_keymap_ui
 from bpy.app.translations import contexts as i18n_contexts
+from bpy.app.handlers import persistent
+
 
 user_prefs = bpy.context.preferences.themes[0].view_3d
 
@@ -133,7 +135,7 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
         col.label(text="Keymap settings:")
 
         wm = bpy.context.window_manager
-        kc = wm.keyconfigs.addon
+        kc = wm.keyconfigs.user
         km = kc.keymaps['Mesh']
         col.context_pointer_set("keymap", km)
         for kmi in km.keymap_items:
@@ -144,6 +146,7 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
 
 from bl_keymap_utils.io import keyconfig_init_from_data
 
+
 def get_addon_prefs():
     addons_prefs = bpy.context.preferences.addons
     id = 'half_knife'
@@ -151,6 +154,24 @@ def get_addon_prefs():
 
 def is_addon_keymap(kmi):
     return kmi.idname in {'mesh.half_knife_operator', 'mesh.knife_tool'}
+
+@persistent
+def on_load():
+    print('on_load')
+    keyconfigs = bpy.context.window_manager.keyconfigs
+    kmis = keyconfigs.default.keymaps['Mesh'].keymap_items
+    i = 0
+    while not 'mesh.knife_tool' in kmis and i < 100:
+        time.sleep(.1)
+        i += 1
+    print(i)
+    kmis['mesh.knife_tool'].alt = True
+
+def load_handler(arg):
+    _thread.start_new_thread(on_load,())
+    # print('item count:',len(km.keymap_items))
+
+
 
 def register_keymaps():
 
@@ -169,22 +190,31 @@ def register_keymaps():
                 ("mesh.half_knife_operator", {"type": 'K', "value": 'PRESS', "shift": True},
                  {"properties": [("auto_cut", True), ("snap_to_center", False), ("snap_to_center_alternate", False), ("cut_through", False), ("turn_off_snapping", False)],
                   "active":True}),
-                ("mesh.knife_tool", {"type": 'K', "value": 'PRESS', "alt": True},
-                 {"properties": [],
-                  "active":True}),
             ]},
         ),
     ])
-    kmi = keyconfigs.default.keymaps['Mesh'].keymap_items['mesh.knife_tool']
-    kmi.active = False
+    kmis = keyconfigs.default.keymaps['Mesh'].keymap_items
+    if 'mesh.knife_tool' in kmis:
+        kmis['mesh.knife_tool'].alt = True
+    else:
+        _thread.start_new_thread(on_load,())
+        # bpy.app.handlers.load_post.append(load_handler)
+    prefs = get_addon_prefs()
+    # print(prefs)
+    if prefs and prefs.is_installed:
+        print('addon is installed')
+        return
+    print('addon is installing')
+    # kmi = keyconfigs.user.keymaps['Mesh'].keymap_items['mesh.knife_tool']
+    # kmi.alt = True
+
     # bpy.context.preferences.is_dirty = True
-    # prefs = get_addon_prefs()
-    # if prefs and prefs.is_installed:
-    #     return
 
-    # if prefs:
-    #     prefs.is_installed = True
 
+    if prefs:
+        prefs.is_installed = True
+
+    #
 
 def unregister_keymaps():
     keyconfigs = bpy.context.window_manager.keyconfigs
@@ -193,9 +223,10 @@ def unregister_keymaps():
     km = kc_addonconf.keymaps['Mesh']
 
     for kmi in km.keymap_items:
-        if is_addon_keymap(kmi) :
+        if kmi.idname in {'mesh.half_knife_operator'} :
             km.keymap_items.remove(kmi)
 
-    kmi = keyconfigs.default.keymaps['Mesh'].keymap_items['mesh.knife_tool']
-    kmi.active = True
+    kc = keyconfigs.default
+    km = kc.keymaps['Mesh']
+    km.keymap_items['mesh.knife_tool'].alt = False
     return
