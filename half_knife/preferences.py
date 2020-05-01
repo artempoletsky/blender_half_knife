@@ -1,6 +1,7 @@
 
 import bpy
 import rna_keymap_ui
+from bpy.app.translations import contexts as i18n_contexts
 
 user_prefs = bpy.context.preferences.themes[0].view_3d
 
@@ -37,6 +38,8 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
         default="GENERAL")
 
     disable_knife_icon : bpy.props.BoolProperty(name = "Disable knife mouse cursor icon", default = defaults.disable_knife_icon)
+
+    is_installed : bpy.props.BoolProperty(name = "Disable knife mouse cursor icon", default = False)
 
     snap_vertex_distance : bpy.props.IntProperty(name = "Vertex snap distance (pixels)", default = defaults.snap_vertex_distance)
     snap_edge_distance : bpy.props.IntProperty(name = "Edge snap distance (pixels)", default = defaults.snap_edge_distance)
@@ -131,20 +134,23 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
 
         wm = bpy.context.window_manager
         kc = wm.keyconfigs.addon
-        km = find_keymap(kc)
+        km = kc.keymaps['Mesh']
+        col.context_pointer_set("keymap", km)
         for kmi in km.keymap_items:
-            # if kmi.idname in {'mesh.half_knife_operator', 'mesh.knife_tool'}:
-            col.context_pointer_set("keymap", km)
-            rna_keymap_ui.draw_kmi(["ADDON", "USER", "DEFAULT"], kc, km, kmi, col, 0)
+            if is_addon_keymap(kmi):
+                rna_keymap_ui.draw_kmi(["ADDON", "USER", "DEFAULT"], kc, km, kmi, col, 0)
+
+        # col.operator("preferences.keyitem_add", text="Add New", text_ctxt=i18n_contexts.id_windowmanager, icon='ADD')
 
 from bl_keymap_utils.io import keyconfig_init_from_data
 
-def find_keymap(cfg):
-    km = None
-    for item in cfg.keymaps:
-        if item.bl_owner_id == 'half_knife':
-            km = item
-    return km
+def get_addon_prefs():
+    addons_prefs = bpy.context.preferences.addons
+    id = 'half_knife'
+    return addons_prefs[id].preferences if id in addons_prefs else None
+
+def is_addon_keymap(kmi):
+    return kmi.idname in {'mesh.half_knife_operator', 'mesh.knife_tool'}
 
 def register_keymaps():
 
@@ -152,45 +158,44 @@ def register_keymaps():
     # kc_defaultconf = keyconfigs.default
     kc_addonconf = keyconfigs.addon
 
+    keyconfig_init_from_data(kc_addonconf, [
+         (
+            "Mesh",
+            {"space_type": 'EMPTY', "region_type": 'WINDOW'},
+            {"items": [
+                ("mesh.half_knife_operator", {"type": 'K', "value": 'PRESS'},
+                 {"properties": [("auto_cut", False), ("snap_to_center", False), ("snap_to_center_alternate", False), ("cut_through", False), ("turn_off_snapping", False)],
+                  "active":True}),
+                ("mesh.half_knife_operator", {"type": 'K', "value": 'PRESS', "shift": True},
+                 {"properties": [("auto_cut", True), ("snap_to_center", False), ("snap_to_center_alternate", False), ("cut_through", False), ("turn_off_snapping", False)],
+                  "active":True}),
+                ("mesh.knife_tool", {"type": 'K', "value": 'PRESS', "alt": True},
+                 {"properties": [],
+                  "active":True}),
+            ]},
+        ),
+    ])
+    kmi = keyconfigs.default.keymaps['Mesh'].keymap_items['mesh.knife_tool']
+    kmi.active = False
+    # bpy.context.preferences.is_dirty = True
+    # prefs = get_addon_prefs()
+    # if prefs and prefs.is_installed:
+    #     return
 
-    km = find_keymap(kc_addonconf)
-    if km:
-        return
-
-    km = kc_addonconf.keymaps.new(name="3D View Generic", space_type='VIEW_3D', region_type='WINDOW')
-    km.bl_owner_id = 'half_knife'
-    # print(km.bl_owner_id)
-    # setattr(km, 'half_knife', True)
-    # km.half_knife = True
-    kmi = km.keymap_items.new("mesh.half_knife_operator", 'K', 'PRESS')
-    kmi.properties.auto_cut = False
-    kmi.properties.snap_to_center = False
-    kmi.properties.snap_to_center_alternate = False
-    kmi.properties.cut_through = False
-    kmi.properties.turn_off_snapping = False
-
-    kmi = km.keymap_items.new("mesh.half_knife_operator", 'K', 'PRESS')
-    kmi.shift = True
-    kmi.properties.auto_cut = True
-    kmi.properties.snap_to_center = False
-    kmi.properties.snap_to_center_alternate = False
-    kmi.properties.cut_through = False
-    kmi.properties.turn_off_snapping = False
-
-
-    kmi = km.keymap_items.new("mesh.knife_tool", 'K', 'PRESS')
-    kmi.alt = True
+    # if prefs:
+    #     prefs.is_installed = True
 
 
 def unregister_keymaps():
     keyconfigs = bpy.context.window_manager.keyconfigs
     kc_addonconf = keyconfigs.addon
 
-    km = find_keymap(kc_addonconf)
-    if km:
-        kc_addonconf.keymaps.remove(km)
+    km = kc_addonconf.keymaps['Mesh']
 
-    # for kmi in km.keymap_items:
-    #     if kmi.idname in {'mesh.half_knife_operator', 'mesh.knife_tool'} :
-    #         km.keymap_items.remove(kmi)
+    for kmi in km.keymap_items:
+        if is_addon_keymap(kmi) :
+            km.keymap_items.remove(kmi)
+
+    kmi = keyconfigs.default.keymaps['Mesh'].keymap_items['mesh.knife_tool']
+    kmi.active = True
     return
