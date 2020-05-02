@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Half knife",
     "author": "Artem Poletsky",
-    "version": (1, 2, 3),
+    "version": (1, 2, 4),
     "blender": (2, 82, 0),
     # "location": "",
     "description": "Optimized for fast workflow knife tool",
@@ -306,6 +306,11 @@ class HalfKnifeOperator(bpy.types.Operator):
         # if not self.hit:
             # return
         is_multiple_verts = len(self.initial_vertices) > 1
+        if not is_multiple_verts:
+            start = self.initial_vertices[0]
+            end = self.snapped_hit
+            if start.co == end:
+                return
         self.create_cut_obj(self.initial_vertices, self.snapped_hit)
         self.delete_vitrual_vertex()
         if self._snap_to_center and not is_multiple_verts and not self._snap_to_center_alternate:
@@ -527,6 +532,8 @@ class HalfKnifeOperator(bpy.types.Operator):
                     # return {'FINISHED'}
                 if self._snap_to_center:
                     vert.co = center
+                if not self.virtual_start:
+                    return {'FINISHED'}
                 # return {'FINISHED'}
             #else snapped vertex is selected, not the new
             if self.snap_mode != 'VERT' and not self.virtual_start:
@@ -585,12 +592,12 @@ def register():
     bpy.types.VIEW3D_MT_edit_mesh.append(menu_func)
 
 def unregister():
-    preferences.unregister_keymaps()
-
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
     bpy.types.VIEW3D_MT_edit_mesh.remove(menu_func)
+
+    preferences.unregister_keymaps()
 
 if __name__ == "__main__":
     register()
