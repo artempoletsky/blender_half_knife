@@ -71,6 +71,8 @@ class GeometryMath:
         d1 = (v1 - projected).length
         d2 = (v2 - projected).length
         a = ab.length
+        if a == 0:
+            return 0
         # projected = projected if abs(d1 + d2 - a) < 0.001 else edge.verts[0] if d1 < d2 else edge.verts[1]
         split_ratio = 0
         if (abs(d1 + d2 - a) < 0.001):
@@ -94,13 +96,20 @@ class GeometryMath:
         d2 = (point - v2).length
         projected = self.vertex_project(point, v1, v2)
         h = (point - projected).length
-        # appriximately
-        edge_pixel_distance = self.distance_2d(point, projected)
+
+        # to solve concave ngons
+        split_ratio = self.get_split_ratio(projected, edge)
+        closest_point_on_edge = projected
+        if split_ratio == 1:
+            closest_point_on_edge = v2
+        elif split_ratio == 0:
+            closest_point_on_edge = v1
+        edge_pixel_distance = self.distance_2d(point, closest_point_on_edge)
 
         vertex_distance, vertex_index, vertex_pixel_distance = (d1, 0, self.distance_2d(v1, point)) if d1 < d2 else (d2, 1, self.distance_2d(v2, point))
         edge_distance = min(h, d1, d2)
 
-        return edge_distance, vertex_distance, vertex_index, edge_pixel_distance, vertex_pixel_distance, projected
+        return edge_distance, vertex_distance, vertex_index, edge_pixel_distance, vertex_pixel_distance, projected, split_ratio
 
     def find_closest(self, point, face):
         if not point:
