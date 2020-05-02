@@ -575,6 +575,7 @@ class HalfKnifeOperator(bpy.types.Operator):
 
 classes = (
     preferences.HalfKnifePreferences,
+    preferences.HalfKnifePreferencesAddKeymapOperator,
     HalfKnifeOperator
 )
 
