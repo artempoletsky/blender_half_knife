@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Half knife",
     "author": "Artem Poletsky",
-    "version": (1, 2, 0),
+    "version": (1, 2, 3),
     "blender": (2, 82, 0),
     # "location": "",
     "description": "Optimized for fast workflow knife tool",
@@ -148,18 +148,24 @@ class HalfKnifeOperator(bpy.types.Operator):
         def createLine(vert_co, vector, face):
             v = vector * 20
             return self.util.project_point_on_view(vert_co), self.util.project_point_on_view(vert_co + vector), face, vert_co - v, vert_co + v
+        self.snap_axises_highlight = []
         for face in vert.link_faces:
             edges = []
             for e in v_edges:
                 if e in face.edges:
                     edges.append(e)
-            # print(edges)
-            v1 = edges[0].other_vert(vert).co - vert.co
+            highlightV1 = edges[0].other_vert(vert).co
+            highlightV2 = edges[1].other_vert(vert).co
+            highlightE1 = edges[0]
+            highlightE2 = edges[1]
+            highlightFace = face
+            self.snap_axises_highlight.append((highlightFace, highlightE1, highlightE2, highlightV1, highlightV2))
+
+            v1 = highlightV1 - vert.co
             v1.normalize()
-            v2 = edges[1].other_vert(vert).co - vert.co
+            v2 = highlightV2 - vert.co
             v2.normalize()
             v = (v1 + v2) / 2
-            # print(v.length)
             if v.length < 0.001:
                 v = mathutils.Vector(np.cross(face.normal, v2))
                 v.normalize()
@@ -173,19 +179,29 @@ class HalfKnifeOperator(bpy.types.Operator):
             self.last_hited_face = vert.link_faces[0]
         self.snap_axises = result
 
-    def get_drawing_axis(self):
-        # vert = self.initial_vertices[0].co
-        # vert = self.util.project_point_on_view(vert)
-        # face = self.initial_face
-        # edge = self.initial_edge
-        # v1, v2 = [v.co for v in edge.verts]
+    def draw_angle_constraint(self, batch):
         a = self.active_axis
         axises = []
         # for v, face in vertices:
         axises.append({
             "verts": [{"co": a[0]}, {"co": a[1]}]
         })
-        return (axises, self.prefs.angle_constraint_axis)
+        batch['edge'].insert(0, (axises, self.prefs.angle_constraint_axis))
+        highlight_data = None
+        for d in self.snap_axises_highlight:
+            if d[0] == self.last_hited_face:
+                highlight_data = d
+                break
+        if highlight_data:
+            e1 = edge_to_dict(highlight_data[1])
+            e2 = edge_to_dict(highlight_data[2])
+            v1 = highlight_data[3]
+            v2 = highlight_data[4]
+            batch['edge'].insert(0, ([e1, e2], self.prefs.edge_snap))
+            batch['vert'].insert(0, ([v1, v2], self.prefs.vertex_snap))
+        # batch['edge'].insert(0, (axises, self.prefs.angle_constraint_axis))
+        batch['face'] = [(self.last_hited_face, self.prefs.angle_constraint_active_face)]
+        return batch
 
     def snap_to_axis(self, hit):
         res_d = float("inf")
@@ -234,6 +250,9 @@ class HalfKnifeOperator(bpy.types.Operator):
             else:
                 se = end - start
                 l = int(se.length / 4)
+                if l == 0:
+                    bpy.ops.view3d.select_circle(x = int(start.x), y = int(start.y), radius = 2, wait_for_input = False, mode = mode)
+                    return
                 range_start = 0
                 range_end = l + 1
                 for i in range(range_start, range_end):
@@ -293,11 +312,12 @@ class HalfKnifeOperator(bpy.types.Operator):
             self.select_path()
             old_verts = list(filter(lambda v: v.select, self.bmesh.verts))
             old_verts_coords = [v.co for v in old_verts]
-            print(old_verts_coords)
+
 
         bpy.ops.mesh.knife_project(cut_through = self._cut_through)
         bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
-        self.delete_cut_obj()
+        if not self._debug_keep_cut_obj:
+            self.delete_cut_obj()
         def compareVectorsApprox(v1, v2, delta = 0.001):
             d = v1 - v2
             return abs(d.x) < delta and abs(d.y) < delta and abs(d.z) < delta
@@ -310,11 +330,11 @@ class HalfKnifeOperator(bpy.types.Operator):
         if self._snap_to_center and not is_multiple_verts and not self._snap_to_center_alternate:
             self.bmesh.free()
             bm = self.bmesh = bmesh.from_edit_mesh(self.object.data)
+            # bm.verts.ensure_lookup_table()
             self.select_path()
-            new_verts = list(filter(lambda v: v.select, self.bmesh.verts))
+            new_verts = [v for v in bm.verts if v.select]
             self.select_path(only_ends = True, mode = 'SUB')
-            active_verts = list(filter(lambda v: v.select and not coord_in_list(v.co, old_verts_coords), new_verts))
-            # print(new_verts)
+            active_verts = [v for v in new_verts if v.select and not coord_in_list(v.co, old_verts_coords)]
 
             for v in active_verts:
                 edges = []
@@ -322,13 +342,16 @@ class HalfKnifeOperator(bpy.types.Operator):
                     v0 = e.other_vert(v)
                     if not v0 in new_verts:
                         edges.append(e)
+                if len(edges) != 2:
+                    continue
                 v1 = edges[0].other_vert(v)
                 v2 = edges[1].other_vert(v)
                 v.co = (v1.co + v2.co) / 2
 
         bmesh.update_edit_mesh(self.object.data, True)
         select_location = self.util.location_3d_to_region_2d_object_space(self.snapped_hit)
-        bpy.ops.view3d.select(location = (int(select_location.x), int(select_location.y)))
+        if select_location:
+            bpy.ops.view3d.select(location = (int(select_location.x), int(select_location.y)))
 
 
     def select_only(self, bmesh_geom):
@@ -400,8 +423,8 @@ class HalfKnifeOperator(bpy.types.Operator):
         batch = self.calc_hit(context, event)
         if batch:
             if self._angle_constraint:
-                batch['edge'].insert(0, self.get_drawing_axis())
-                batch['face'] = [(self.last_hited_face, self.prefs.angle_constraint_active_face)]
+                batch = self.draw_angle_constraint(batch)
+
             self.draw.batch(batch)
         else:
             self.draw.clear()
@@ -470,6 +493,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         self._snap_to_center = self.snap_to_center
         self._snap_to_center_alternate = self.snap_to_center_alternate
         self._turn_off_snapping = self.turn_off_snapping
+        self._debug_keep_cut_obj = False
         self.context = context
         self.object = context.edit_object
         addons_prefs = context.preferences.addons
@@ -550,11 +574,9 @@ classes = (
 def menu_func(self, context):
     layout = self.layout
     layout.separator()
-    # print('menu')
     layout.operator_context = "INVOKE_REGION_WIN"
     layout.operator(HalfKnifeOperator.bl_idname, text = HalfKnifeOperator.bl_label)
-# for i in dir(bpy.types):
-    # if "snap" in i: print(i)
+
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
@@ -563,12 +585,12 @@ def register():
     bpy.types.VIEW3D_MT_edit_mesh.append(menu_func)
 
 def unregister():
-    preferences.unregister_keymaps()
-
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
     bpy.types.VIEW3D_MT_edit_mesh.remove(menu_func)
+
+    preferences.unregister_keymaps()
 
 if __name__ == "__main__":
     register()
