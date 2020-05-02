@@ -5,6 +5,20 @@ from bpy.app.translations import contexts as i18n_contexts
 from bpy.app.handlers import persistent
 
 
+class HalfKnifePreferencesAddKeymapOperator(bpy.types.Operator):
+    """Add key map item"""
+    bl_idname = "half_knife_preferences.keyitem_add"
+    bl_label = "Add Key Map Item"
+
+    def execute(self, context):
+        km = context.keymap
+
+        kmi = km.keymap_items.new("mesh.half_knife_operator", 'K', 'PRESS')
+        context.preferences.is_dirty = True
+        return {'FINISHED'}
+
+
+
 user_prefs = bpy.context.preferences.themes[0].view_3d
 
 class HalfKnifePreferencesDefaults():
@@ -141,8 +155,8 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
         for kmi in km.keymap_items:
             if is_addon_keymap(kmi):
                 rna_keymap_ui.draw_kmi(["ADDON", "USER", "DEFAULT"], kc, km, kmi, col, 0)
-
-        # col.operator("preferences.keyitem_add", text="Add New", text_ctxt=i18n_contexts.id_windowmanager, icon='ADD')
+        subcol = col.split(factor=0.2).column()
+        subcol.operator(HalfKnifePreferencesAddKeymapOperator.bl_idname, text="Add New", text_ctxt=i18n_contexts.id_windowmanager, icon='ADD')
 
 from bl_keymap_utils.io import keyconfig_init_from_data
 
