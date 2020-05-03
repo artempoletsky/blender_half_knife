@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Half knife",
     "author": "Artem Poletsky",
-    "version": (1, 2, 4),
+    "version": (1, 2, 5),
     "blender": (2, 82, 0),
     # "location": "",
     "description": "Optimized for fast workflow knife tool",
@@ -62,6 +62,15 @@ def is_backfacing(face, view_vector):
     normal = face.normal
     return np.dot(view_vector, normal) > 0
 
+def dissolve_redundant_edges(bm, vert, excluded_verts = []):
+    dissolved_edges = []
+    l = len(vert.link_edges)
+    for e in vert.link_edges:
+        if not e.other_vert(vert) in excluded_verts and l > 2:
+            dissolved_edges.append(e)
+            l -= 1
+    # dissolved_edges = vert.link_edges[slice(len(vert.link_edges) - 2)]
+    bmesh.ops.dissolve_edges(bm, edges = dissolved_edges, use_verts = False, use_face_split = False)
 
 class HalfKnifeOperator(bpy.types.Operator):
     """Run half knife"""
@@ -105,8 +114,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             return vert, co
         vert, center = self.get_new_vert()
         if self.snap_mode == 'FACE':
-            dissolved_edges = vert.link_edges[slice(len(vert.link_edges) - 2)]
-            bmesh.ops.dissolve_edges(self.bmesh, edges = dissolved_edges, use_verts = False, use_face_split = False)
+            dissolve_redundant_edges(self.bmesh, vert)
 
         if self.snap_mode == 'FACE':
             self.face = vert.link_faces[0]
@@ -300,17 +308,45 @@ class HalfKnifeOperator(bpy.types.Operator):
             bmesh.ops.delete(self.bmesh, geom = [self.virtual_start], context = 'VERTS')
             self.update_geom()
 
+    def fix_lonely_vert(self, start_co):
+        bm = self.bmesh = bmesh.from_edit_mesh(self.object.data)
+
+        start = None
+        lonely_vert = None
+        for v in bm.verts:
+            if v.co == start_co:
+                start = v
+            if v.select:
+                lonely_vert = v
+        if len(lonely_vert.link_faces) != 0:
+            return
+        end = lonely_vert.co
+        bm.verts.remove(lonely_vert)
+        self.update_geom()
+        hit, face = self.util.ray_cast_point(self.tree, bm, self.snapped_hit)
+        vert = bmesh.ops.poke(bm, faces=[face])['verts'][0]
+        vert.co = self.snapped_hit
+        dissolve_redundant_edges(bm, vert, excluded_verts = [start])
+        vert.select_set(True)
+        self.bmesh.select_history.add(vert)
+        self.update_geom()
+
     def run_cut(self):
 #        v = self.bmesh.verts.new()
 #        v.co = self.new_vert
         # if not self.hit:
             # return
+        risk_of_lonely_vert = False
         is_multiple_verts = len(self.initial_vertices) > 1
         if not is_multiple_verts:
             start = self.initial_vertices[0]
             end = self.snapped_hit
             if start.co == end:
                 return
+            if self.snap_mode == 'FACE' and self.face in start.link_faces:
+                risk_of_lonely_vert = True
+                start_co = start.co
+
         self.create_cut_obj(self.initial_vertices, self.snapped_hit)
         self.delete_vitrual_vertex()
         if self._snap_to_center and not is_multiple_verts and not self._snap_to_center_alternate:
@@ -358,6 +394,8 @@ class HalfKnifeOperator(bpy.types.Operator):
         if select_location:
             bpy.ops.view3d.select(location = (int(select_location.x), int(select_location.y)))
 
+        if risk_of_lonely_vert:
+            self.fix_lonely_vert(start_co)
 
     def select_only(self, bmesh_geom):
         bpy.ops.mesh.select_all(action = 'DESELECT')

@@ -30,6 +30,10 @@ class GeometryMath:
             return None, None
         return hit, bm.faces[face_index]
 
+    def ray_cast_point(self, tree, bm, vec):
+        v = self.location_3d_to_region_2d_object_space(vec)
+        return self.ray_cast_BVH(tree, bm, v.x, v.y)
+
     def get_view_object_space(self, x, y):
         view_origin, view_vector = self.get_view_world_space(x, y)
         ray_target = view_origin + view_vector
