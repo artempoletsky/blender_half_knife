@@ -171,14 +171,14 @@ def is_addon_keymap(kmi):
 
 @persistent
 def on_load():
-    print('on_load')
+    # print('on_load')
     keyconfigs = bpy.context.window_manager.keyconfigs
     kmis = keyconfigs.default.keymaps['Mesh'].keymap_items
     i = 0
     while not 'mesh.knife_tool' in kmis and i < 100:
         time.sleep(.1)
         i += 1
-    print(i)
+    # print(i)
     kmis['mesh.knife_tool'].alt = True
 
 def load_handler(arg):
@@ -216,9 +216,9 @@ def register_keymaps():
     prefs = get_addon_prefs()
     # print(prefs)
     if prefs and prefs.is_installed:
-        print('addon is installed')
+        # print('addon is installed')
         return
-    print('addon is installing')
+    # print('addon is installing')
     # kmi = keyconfigs.user.keymaps['Mesh'].keymap_items['mesh.knife_tool']
     # kmi.alt = True
 

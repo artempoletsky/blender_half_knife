@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Half knife",
     "author": "Artem Poletsky",
-    "version": (1, 2, 5),
+    "version": (1, 2, 6),
     "blender": (2, 82, 0),
     # "location": "",
     "description": "Optimized for fast workflow knife tool",
@@ -87,7 +87,7 @@ class HalfKnifeOperator(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         return (context.space_data.type == 'VIEW_3D'
-            and len(context.selected_objects) > 0
+            and context.object
             and context.object.mode == 'EDIT')
 
     def get_new_vert(self):
