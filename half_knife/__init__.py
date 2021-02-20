@@ -124,6 +124,10 @@ class HalfKnifeOperator(bpy.types.Operator):
             return vert, center
 
     def addVert(self, context, event):
+
+        # when we adding a new vert we don't need this
+        self._altitude_mode = False
+
         self.calc_hit(context, event)
         if self.snap_mode == 'VOID':
             co = self.util.get_viewport_point_object_space(event.mouse_region_x, event.mouse_region_y)
