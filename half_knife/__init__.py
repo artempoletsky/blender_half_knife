@@ -443,7 +443,7 @@ class HalfKnifeOperator(bpy.types.Operator):
                 # hit = None
             self.hit = hit
         if hit:
-            vert, edge, vertex_pixel_distance, edge_pixel_distance, projected = self.util.find_closest(hit, face)
+            vert, edge, vertex_pixel_distance, edge_pixel_distance, projected = self.util.find_closest(hit, face, True)
             self.vert = vert
             self.edge = edge
             self.face = face

@@ -133,7 +133,7 @@ class GeometryMath:
 
         return edge_distance, vertex_distance, vertex_index, edge_pixel_distance, vertex_pixel_distance, projected, split_ratio
 
-    def find_closest(self, point, face):
+    def find_closest(self, point, face, cull_zero_edges = True):
         if not point:
             return None, None, None, None
 
@@ -149,6 +149,13 @@ class GeometryMath:
             except Exception as ex:
                 e.select_set(True)
                 raise ex
+
+            if (cull_zero_edges):
+                #projected_length = (dRes[5] - point).length
+                split_ratio = dRes[6]
+                #print(split_ratio)
+                if split_ratio in [0, 1]:
+                    continue
 
             if dRes[0] < edge_dist:
                 edge_dist = dRes[0]
