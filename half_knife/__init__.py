@@ -19,8 +19,8 @@
 bl_info = {
     "name": "Half knife",
     "author": "Artem Poletsky",
-    "version": (1, 2, 6),
-    "blender": (2, 82, 0),
+    "version": (1, 3, 0),
+    "blender": (2, 91, 0),
     # "location": "",
     "description": "Optimized for fast workflow knife tool",
     "warning": "",
@@ -97,6 +97,7 @@ class HalfKnifeOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     auto_cut: bpy.props.BoolProperty(name="Cut without preview", default=False)
+    altitude_mode: bpy.props.BoolProperty(name="Altitude mode", default=False)
     snap_to_center: bpy.props.BoolProperty(name="Snap to center", default=False)
     snap_to_center_alternate: bpy.props.BoolProperty(name="Snap to center of end points only", default=False)
     cut_through: bpy.props.BoolProperty(name="Cut through", default=False)
@@ -263,8 +264,13 @@ class HalfKnifeOperator(bpy.types.Operator):
         if self._snap_to_center and not self._turn_off_snapping:
             projected = calc_edge_center(edge)
         self.snapped_hit = projected
+        edge_draw = []
+        if self._altitude_mode:
+            edge_draw = [{"verts" : [{"co": projected}, {"co": edge.verts[0].co}]}, {"verts" : [{"co": projected}, {"co": edge.verts[1].co}]}]
+        else:
+            edge_draw = [edge_to_dict(edge)]
         return {
-            'edge': [(self.get_drawing_edges(projected), self.prefs.cutting_edge), ([edge_to_dict(edge)], self.prefs.edge_snap)],
+            'edge': [(self.get_drawing_edges(projected), self.prefs.cutting_edge), (edge_draw, self.prefs.edge_snap)],
             'vert': [([projected], self.prefs.vertex)]
         }
 
@@ -411,6 +417,9 @@ class HalfKnifeOperator(bpy.types.Operator):
         select_location = self.util.location_3d_to_region_2d_object_space(self.snapped_hit)
         if select_location:
             bpy.ops.view3d.select(location = (int(select_location.x), int(select_location.y)))
+            # Blender 2.91 hack bugfix
+            #bpy.ops.object.mode_set(mode = 'OBJECT')
+            #bpy.ops.object.mode_set(mode = 'EDIT')
 
         if risk_of_lonely_vert:
             self.fix_lonely_vert(start_co)
@@ -434,7 +443,11 @@ class HalfKnifeOperator(bpy.types.Operator):
             self.vert = vert
             self.edge = edge
             self.face = face
-            if vertex_pixel_distance < self.prefs.snap_vertex_distance and not self._turn_off_snapping:
+            if self._altitude_mode:
+                v1, v2 = [v.co for v in edge.verts]
+                projected  = self.util.vertex_project(self.initial_vertices[0].co, v1, v2)
+                batch = self.snap_edge_preivew(hit, edge, projected);
+            elif vertex_pixel_distance < self.prefs.snap_vertex_distance and not self._turn_off_snapping:
                 batch = self.snap_vert_preivew(vert)
             elif edge_pixel_distance < self.prefs.snap_edge_distance and not self._turn_off_snapping:
                 batch = self.snap_edge_preivew(hit, edge, projected)
@@ -456,19 +469,23 @@ class HalfKnifeOperator(bpy.types.Operator):
     def draw_helper_text(self):
         shift = "On" if self._turn_off_snapping else "Off"
         snap_to_center = "On" if self._snap_to_center else "Off"
+        altitude_mode = "On" if self._altitude_mode else "Off"
         snap_to_center_alternate = "On" if self._snap_to_center_alternate else "Off"
         angle_constraint = "On" if self._angle_constraint else "Off"
         angle_constraint_text = " C: angle_constraint (" + angle_constraint + ");"
         snap_to_center_text = " Ctrl: snap to center (" + snap_to_center + ");"
         snap_to_center_alternate_text = " Alt: snap to center of end points only (" + snap_to_center_alternate + ");"
+        altitude_mode_text = " H: altitude mode (" + altitude_mode + ");"
         if self.is_multiple_verts:
             angle_constraint_text = ""
             snap_to_center_text = ""
+            altitude_mode_text = ""
         if self.virtual_start:
             angle_constraint_text = ""
+            altitude_mode_text = ""
 
         cut_through = "On" if self._cut_through else "Off"
-        self.context.area.header_text_set("Shift: turn off snapping(" + shift + ");" + snap_to_center_text + angle_constraint_text + snap_to_center_alternate_text + " Z: cut_through: (" + cut_through + ")")
+        self.context.area.header_text_set("Shift: turn off snapping(" + shift + ");" + snap_to_center_text + angle_constraint_text + snap_to_center_alternate_text + " Z: cut through: (" + cut_through + ")" + altitude_mode_text)
 
     def clear_helper_text(self):
         self.context.area.header_text_set(None)
@@ -503,15 +520,23 @@ class HalfKnifeOperator(bpy.types.Operator):
             # allow navigation
             if not self._angle_constraint and not is_virtual_start:
                 return {'PASS_THROUGH'}
+        elif event.type == 'H' and event.value == 'PRESS':
+            if is_virtual_start or is_virtual_start:
+                return {'RUNNING_MODAL'}
+            self._angle_constraint = False;
+            self._snap_to_center = False;
+            self._snap_to_center_alternate = False;
+            self._altitude_mode = not self._altitude_mode
         elif event.type == 'Z' and event.value == 'PRESS':
             self._cut_through = not self._cut_through
         elif event.type == 'C' and event.value == 'PRESS':
             if  is_multiple_verts or is_virtual_start:
                 return {'RUNNING_MODAL'}
+            self._altitude_mode = False
             self._angle_constraint = not self._angle_constraint
             self.update_snap_axises()
         elif event.type in {'LEFT_CTRL', 'RIGHT_CTRL'} and event.value == 'PRESS':
-
+            self._altitude_mode = False
             self._snap_to_center = not self._snap_to_center
             if not self._snap_to_center:
                 self._snap_to_center_alternate = False
@@ -520,6 +545,7 @@ class HalfKnifeOperator(bpy.types.Operator):
                 self.redraw(context, event)
         elif event.type in {'LEFT_ALT', 'RIGHT_ALT'} and event.value == 'PRESS':
             self._snap_to_center_alternate = not self._snap_to_center_alternate
+            self._altitude_mode = False
             self._snap_to_center = True
             if self.is_cut_from_new_vertex:
                 self.update_initial_vertex_position()
@@ -552,6 +578,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         self._cut_through = self.cut_through
         self._angle_constraint = False
         self._snap_to_center = self.snap_to_center
+        self._altitude_mode = self.altitude_mode
         self._snap_to_center_alternate = self.snap_to_center_alternate
         self._turn_off_snapping = self.turn_off_snapping
         self._debug_keep_cut_obj = False
@@ -632,7 +659,7 @@ class HalfKnifeOperator(bpy.types.Operator):
 classes = (
     preferences.HalfKnifePreferences,
     preferences.HalfKnifePreferencesAddKeymapOperator,
-    HalfKnifeOperator
+    HalfKnifeOperator,
 )
 
 def menu_func(self, context):
