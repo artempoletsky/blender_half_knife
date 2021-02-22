@@ -138,8 +138,6 @@ class HalfKnifeOperator(bpy.types.Operator):
         vert, center = self.get_new_vert()
         if self.snap_mode == 'FACE':
             dissolve_redundant_edges(self.bmesh, vert)
-
-        if self.snap_mode == 'FACE':
             self.face = vert.link_faces[0]
         vert.select_set(True)
         self.bmesh.select_history.add(vert)
@@ -295,23 +293,47 @@ class HalfKnifeOperator(bpy.types.Operator):
                     p = start + (i / l) * se
                     bpy.ops.view3d.select_circle(x = int(p.x), y = int(p.y), radius = 2, wait_for_input = False, mode = mode)
 
-    def create_cut_obj(self, initial_vertices, new_vertex_co):
+    def get_cut_point(self, coord):
+        screen_position_px = self.util.location_3d_to_region_2d_object_space(coord)
+        view_origin, view_vector = self.util.get_view_world_space(screen_position_px.x, screen_position_px.y)
+        pos = view_origin + view_vector;
+        return pos, screen_position_px
+
+    def create_cut_obj(self):
         # Make a new BMesh
         bm = bmesh.new()
+        new_vertex_co = self.snapped_hit
 
         self.selection_path = []
-        end_px = self.util.location_3d_to_region_2d_object_space(new_vertex_co)
-        view_origin, view_vector = self.util.get_view_world_space(end_px.x, end_px.y)
-        v0 = bm.verts.new(view_origin + view_vector)
-        # v0.select_set(True)
-        for v in initial_vertices:
-            # v.select_set(False)
-            px = self.util.location_3d_to_region_2d_object_space(v.co)
-            view_origin, view_vector = self.util.get_view_world_space(px.x, px.y)
-            v1 = bm.verts.new(view_origin + view_vector)
-            # v1.select_set(True)
-            edge = bm.edges.new((v0, v1))
-            self.selection_path.append((px, end_px))
+
+        v0co, end_px = self.get_cut_point(new_vertex_co)
+        v0 = bm.verts.new(v0co)
+        if self._altitude_mode and self._altitude_prolong_edge:
+            v1e, v2e = [v.co for v in self.edge.verts]
+            d1 = (v1e - new_vertex_co).length
+            d2 = (v2e - new_vertex_co).length
+            v = v1e if d1 < d2 else v2e
+
+            v1co, px1 = self.get_cut_point(v)
+            v1 = bm.verts.new(v1co)
+            edge1 = bm.edges.new((v0, v1))
+            self.selection_path.append((px1, end_px))
+
+            v2co, px2 = self.get_cut_point(self.initial_vertices[0].co)
+            v2 = bm.verts.new(v2co)
+            edge2 = bm.edges.new((v0, v2))
+            self.selection_path.append((px2, end_px))
+
+
+        else:
+            # v0.select_set(True)
+            for v in self.initial_vertices:
+                # v.select_set(False)
+                v1co, px = self.get_cut_point(v.co);
+                v1 = bm.verts.new(v1co)
+                # v1.select_set(True)
+                edge = bm.edges.new((v0, v1))
+                self.selection_path.append((px, end_px))
 
         me = bpy.data.meshes.new("Mesh")
         bm.to_mesh(me)
@@ -375,7 +397,7 @@ class HalfKnifeOperator(bpy.types.Operator):
                 risk_of_lonely_vert = True
                 start_co = start.co
 
-        self.create_cut_obj(self.initial_vertices, self.snapped_hit)
+        self.create_cut_obj()
         self.delete_vitrual_vertex()
         if self._snap_to_center and not is_multiple_verts and not self._snap_to_center_alternate:
             self.select_path()
@@ -450,6 +472,8 @@ class HalfKnifeOperator(bpy.types.Operator):
             if self._altitude_mode:
                 v1, v2 = [v.co for v in edge.verts]
                 projected  = self.util.vertex_project(self.initial_vertices[0].co, v1, v2)
+                split_ratio = self.util.get_split_ratio(projected, edge)
+                self._altitude_prolong_edge = False if split_ratio > 0 and split_ratio < 1 else True
                 batch = self.snap_edge_preivew(hit, edge, projected);
             elif vertex_pixel_distance < self.prefs.snap_vertex_distance and not self._turn_off_snapping:
                 batch = self.snap_vert_preivew(vert)
