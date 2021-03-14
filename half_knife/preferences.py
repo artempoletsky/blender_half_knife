@@ -75,7 +75,7 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
 
     use_edge_autofix : bpy.props.BoolProperty(name = "Use broken edge autofix", default = True)
 
-    edge_autofix_distance : bpy.props.FloatProperty(name = "Edge autofix merge distance", default = 0.001)
+    edge_autofix_distance : bpy.props.FloatProperty(name = "Edge autofix merge distance", default = 0.0001)
 
     snap_vertex_distance : bpy.props.IntProperty(name = "Vertex snap distance (pixels)", default = defaults.snap_vertex_distance)
     snap_edge_distance : bpy.props.IntProperty(name = "Edge snap distance (pixels)", default = defaults.snap_edge_distance)

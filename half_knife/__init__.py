@@ -109,22 +109,9 @@ class HalfKnifeOperator(bpy.types.Operator):
             and context.object
             and context.object.mode == 'EDIT')
 
-    def get_new_vert(self):
-        if self.snap_mode == 'VERT':
-            return self.vert, self.vert.co
-        elif self.snap_mode == 'EDGE':
-            center = calc_edge_center(self.edge)
-            split_ratio = self.util.get_split_ratio(self.snapped_hit, self.edge)
-            edge, vert = bmesh.utils.edge_split(self.edge, self.edge.verts[0], split_ratio)
-            return vert, center
-        else:
-            center = self.face.calc_center_median()
-            vert = bmesh.ops.poke(self.bmesh, faces=[self.face])['verts'][0]
-            vert.co = self.snapped_hit
-            return vert, center
 
     def addVertOnFace(self, co, face):
-        vert = bmesh.ops.poke(self.bmesh, faces=[self.face])['verts'][0]
+        vert = bmesh.ops.poke(self.bmesh, faces=[face])['verts'][0]
         vert.co = co
         dissolve_redundant_edges(self.bmesh, vert)
         return vert;
@@ -146,10 +133,16 @@ class HalfKnifeOperator(bpy.types.Operator):
             vert.co = co
             self.virtual_start = vert
             return vert, co
-        vert, center = self.get_new_vert()
-        if self.snap_mode == 'FACE':
-            dissolve_redundant_edges(self.bmesh, vert)
+        elif self.snap_mode == 'VERT':
+            vert, center = self.vert, self.vert.co
+        elif self.snap_mode == 'FACE':
+            center = self.face.calc_center_median()
+            vert = self.addVertOnFace(self.snapped_hit, self.face)
             self.face = vert.link_faces[0]
+        elif self.snap_mode == 'EDGE':
+            center = calc_edge_center(self.edge)
+            vert = self.addVertOnEdge(self.snapped_hit, self.edge)
+
         vert.select_set(True)
         self.bmesh.select_history.add(vert)
         self.update_geom()
@@ -395,7 +388,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.bmesh.select_history.add(vert)
         self.update_geom()
 
-    def fix_broken_geometry(self):
+    def fix_broken_edges(self):
         verts = [v for v in self.initial_vertices]
 
         if self.snap_mode == 'VERT':
@@ -408,18 +401,18 @@ class HalfKnifeOperator(bpy.types.Operator):
         for v in verts:
             for e in bm.edges:
                 if self.util.is_point_on_edge(v.co, e.verts[0].co, e.verts[1].co, fix_dist):
-                    split_ratio = self.util.get_split_ratio(v.co, e)
-                    print(split_ratio)
-                    #edge, vert = bmesh.utils.edge_split(self.edge, self.edge.verts[0], split_ratio)
-                    broken_edges.append((e, split_ratio, v))
+                    broken_edges.append((e, v))
 
-        vertex_to_merge = []
-        for e, split_ratio, v in broken_edges:
-            edge, vert = bmesh.utils.edge_split(e, e.verts[0], split_ratio)
-            vertex_to_merge.append(v)
-            vertex_to_merge.append(vert)
+        verts_to_merge = []
+        for e, v in broken_edges:
+            #split_ratio = self.util.get_split_ratio(v.co, e)
+            #edge, vert = bmesh.utils.edge_split(e, e.verts[0], split_ratio)
+            vert = self.addVertOnEdge(v.co, e);
+            verts_to_merge.append(v)
+            verts_to_merge.append(vert)
 
-        bmesh.ops.remove_doubles(bm, verts = vertex_to_merge, dist = fix_dist)
+        verts_to_merge = list(set(verts_to_merge))
+        bmesh.ops.remove_doubles(bm, verts = verts_to_merge, dist = fix_dist)
         selected_verts = [v for v in bm.verts if v.select]
         for v in selected_verts:
             if (v.co - self.snapped_hit).length < fix_dist:
@@ -435,9 +428,13 @@ class HalfKnifeOperator(bpy.types.Operator):
         # if not self.hit:
             # return
         if self.prefs.use_edge_autofix:
-            self.fix_broken_geometry()
+            self.fix_broken_edges()
+
+        if not self.initial_vertices:
+            return
         #return;
         risk_of_lonely_vert = False
+
         is_multiple_verts = len(self.initial_vertices) > 1
         if not is_multiple_verts:
             start = self.initial_vertices[0]
@@ -447,6 +444,9 @@ class HalfKnifeOperator(bpy.types.Operator):
             if self.snap_mode == 'FACE' and self.face in start.link_faces:
                 risk_of_lonely_vert = True
                 start_co = start.co
+
+        if self.snap_mode == 'EDGE':
+            self.addVertOnEdge(self.snapped_hit, self.edge)
 
         self.create_cut_obj()
         self.delete_vitrual_vertex()
