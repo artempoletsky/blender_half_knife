@@ -19,7 +19,7 @@
 bl_info = {
     "name": "Half knife",
     "author": "Artem Poletsky",
-    "version": (1, 3, 0),
+    "version": (1, 3, 1),
     "blender": (2, 91, 0),
     # "location": "",
     "description": "Optimized for fast workflow knife tool",
@@ -123,6 +123,17 @@ class HalfKnifeOperator(bpy.types.Operator):
             vert.co = self.snapped_hit
             return vert, center
 
+    def addVertOnFace(self, co, face):
+        vert = bmesh.ops.poke(self.bmesh, faces=[self.face])['verts'][0]
+        vert.co = co
+        dissolve_redundant_edges(self.bmesh, vert)
+        return vert;
+
+    def addVertOnEdge(self, co, edge):
+        split_ratio = self.util.get_split_ratio(co, edge)
+        edge, vert = bmesh.utils.edge_split(edge, edge.verts[0], split_ratio)
+        return vert;
+
     def addVert(self, context, event):
 
         # when we adding a new vert we don't need this
@@ -165,6 +176,7 @@ class HalfKnifeOperator(bpy.types.Operator):
     def snap_vert_preivew(self, vert):
         self.snap_mode = 'VERT'
         self.snapped_hit = vert.co
+        self.snapped_vert = vert
         return {
             'edge': [(self.get_drawing_edges(vert.co), self.prefs.cutting_edge)],
             'vert': [([vert.co], self.prefs.vertex_snap)]
@@ -368,6 +380,8 @@ class HalfKnifeOperator(bpy.types.Operator):
                 start = v
             if v.select:
                 lonely_vert = v
+        if not lonely_vert:
+            return
         if len(lonely_vert.link_faces) != 0:
             return
         end = lonely_vert.co
@@ -381,11 +395,48 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.bmesh.select_history.add(vert)
         self.update_geom()
 
+    def fix_broken_geometry(self):
+        verts = [v for v in self.initial_vertices]
+
+        if self.snap_mode == 'VERT':
+            verts.append(self.snapped_vert)
+
+        bm = self.bmesh = bmesh.from_edit_mesh(self.object.data)
+        fix_dist = self.prefs.edge_autofix_distance
+
+        broken_edges = []
+        for v in verts:
+            for e in bm.edges:
+                if self.util.is_point_on_edge(v.co, e.verts[0].co, e.verts[1].co, fix_dist):
+                    split_ratio = self.util.get_split_ratio(v.co, e)
+                    print(split_ratio)
+                    #edge, vert = bmesh.utils.edge_split(self.edge, self.edge.verts[0], split_ratio)
+                    broken_edges.append((e, split_ratio, v))
+
+        vertex_to_merge = []
+        for e, split_ratio, v in broken_edges:
+            edge, vert = bmesh.utils.edge_split(e, e.verts[0], split_ratio)
+            vertex_to_merge.append(v)
+            vertex_to_merge.append(vert)
+
+        bmesh.ops.remove_doubles(bm, verts = vertex_to_merge, dist = fix_dist)
+        selected_verts = [v for v in bm.verts if v.select]
+        for v in selected_verts:
+            if (v.co - self.snapped_hit).length < fix_dist:
+                v.select = False
+                selected_verts.remove(v)
+        self.initial_vertices = selected_verts
+        self.update_geom()
+
+
     def run_cut(self):
 #        v = self.bmesh.verts.new()
 #        v.co = self.new_vert
         # if not self.hit:
             # return
+        if self.prefs.use_edge_autofix:
+            self.fix_broken_geometry()
+        #return;
         risk_of_lonely_vert = False
         is_multiple_verts = len(self.initial_vertices) > 1
         if not is_multiple_verts:
@@ -526,7 +577,13 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.update_snap_axises()
 
     def redraw(self, context, event):
-        batch = self.calc_hit(context, event)
+        batch = None
+        try:
+            batch = self.calc_hit(context, event)
+        except Exception as e:
+            self.draw.clear()
+            raise e
+
         if batch:
             if self._angle_constraint:
                 batch = self.draw_angle_constraint(batch)

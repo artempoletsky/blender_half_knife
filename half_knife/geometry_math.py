@@ -85,7 +85,20 @@ class GeometryMath:
     def distance_2d(self, v1, v2):
          pxv1 = self.location_3d_to_region_2d_object_space(v1)
          pxv2 = self.location_3d_to_region_2d_object_space(v2)
+         if not pxv1 or not pxv2:
+            return float("inf")
+
          return (pxv1 - pxv2).length
+
+    def is_point_on_edge(self, point, v1, v2, dist):
+        l1 = (point - v1).length
+        if l1 == 0:
+            return False;
+        l2 = (point - v2).length
+        if l2 == 0:
+            return False;
+        #print((v1 - v2).length - (l1 + l2))
+        return abs((v1 - v2).length - (l1 + l2)) < dist
 
     def get_split_ratio(self, projected, edge):
         v1, v2 = [v.co for v in edge.verts]
