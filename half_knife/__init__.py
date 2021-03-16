@@ -427,7 +427,7 @@ class HalfKnifeOperator(bpy.types.Operator):
 #        v.co = self.new_vert
         # if not self.hit:
             # return
-        if self.prefs.use_edge_autofix:
+        if self.prefs.use_edge_autofix and not self.virtual_start: #TODO: make better condition. With virtual start broken edge on the end point will not be fixed.
             self.fix_broken_edges()
 
         if not self.initial_vertices:
