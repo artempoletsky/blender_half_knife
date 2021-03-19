@@ -100,6 +100,14 @@ class GeometryMath:
         #print((v1 - v2).length - (l1 + l2))
         return abs((v1 - v2).length - (l1 + l2)) < dist
 
+    def is_point_on_edge2(self, point, edge, dist):
+        v1, v2 = [v.co for v in edge.verts]
+        d1 = (point - v1).length
+        d2 = (point - v2).length
+        projected = self.vertex_project(point, v1, v2)
+        h = (point - projected).length
+        return h < dist
+
     def get_split_ratio(self, projected, edge):
         v1, v2 = [v.co for v in edge.verts]
         ab = v2 - v1

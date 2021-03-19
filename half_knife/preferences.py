@@ -51,6 +51,10 @@ class HalfKnifePreferencesDefaults():
 
     disable_knife_icon = False
 
+    use_edge_autofix = False
+    edge_autofix_distance = 0.0001
+
+    use_profiler = False
 
     # cutting_edge = (0.603827, 0.000000, 0.318547, 1.000000)
     # vertex = (0.051269, 0.527115, 0.029557, 1.000000)
@@ -73,9 +77,10 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
 
     is_installed : bpy.props.BoolProperty(name = "Disable knife mouse cursor icon", default = False)
 
-    use_edge_autofix : bpy.props.BoolProperty(name = "Use broken edge autofix", default = True)
+    use_edge_autofix : bpy.props.BoolProperty(name = "Use broken edge autofix", default = defaults.use_edge_autofix)
+    edge_autofix_distance : bpy.props.FloatProperty(name = "Edge autofix merge distance", default = defaults.edge_autofix_distance)
 
-    edge_autofix_distance : bpy.props.FloatProperty(name = "Edge autofix merge distance", default = 0.0001)
+    use_profiler : bpy.props.BoolProperty(name = "Print performance log to console", default = defaults.use_profiler)
 
     snap_vertex_distance : bpy.props.IntProperty(name = "Vertex snap distance (pixels)", default = defaults.snap_vertex_distance)
     snap_edge_distance : bpy.props.IntProperty(name = "Edge snap distance (pixels)", default = defaults.snap_edge_distance)
@@ -151,9 +156,12 @@ class HalfKnifePreferences(bpy.types.AddonPreferences):
         col.separator()
         col.prop(self, "disable_knife_icon")
 
-        col.separator()
-        col.prop(self, "use_edge_autofix")
-        col.prop(self, "edge_autofix_distance")
+        #col.separator()
+        #col.prop(self, "use_edge_autofix")
+        #col.prop(self, "edge_autofix_distance")
+
+        #col.separator()
+        #col.prop(self, "use_profiler")
 
     def draw_colors(self, layout):
         layout.use_property_split = True

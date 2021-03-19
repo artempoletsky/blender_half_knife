@@ -1,0 +1,4 @@
+v1.3.1
+1. Performance improved for cut operation.
+2. Fixed bug when cutting lines is out of screen.
+3. Changed handling errors while drawing helper lines. Now exception should not keep drawed lines.

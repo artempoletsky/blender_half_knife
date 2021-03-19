@@ -35,11 +35,14 @@ if "bpy" in locals():
     importlib.reload(geometry_math)
     GeometryMath = geometry_math.GeometryMath
     importlib.reload(preferences)
+    importlib.reload(profiler)
+
 
 else:
     from .draw import Draw
     from .geometry_math import GeometryMath
     from . import preferences
+    from . import profiler
 
 import bpy
 from bpy_extras import view3d_utils
@@ -53,6 +56,7 @@ from gpu_extras.batch import batch_for_shader
 import mathutils
 import bgl
 import math
+
 
 def calc_edge_center(edge):
     return (edge.verts[0].co + edge.verts[1].co) / 2
@@ -117,8 +121,9 @@ class HalfKnifeOperator(bpy.types.Operator):
         return vert;
 
     def addVertOnEdge(self, co, edge):
-        split_ratio = self.util.get_split_ratio(co, edge)
-        edge, vert = bmesh.utils.edge_split(edge, edge.verts[0], split_ratio)
+        #split_ratio = self.util.get_split_ratio(co, edge)
+        edge, vert = bmesh.utils.edge_split(edge, edge.verts[0], .5)
+        vert.co = co
         return vert;
 
     def addVert(self, context, event):
@@ -149,7 +154,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         return vert, center
 
     def update_geom(self):
-        bmesh.update_edit_mesh(self.object.data, True)
+        bmesh.update_edit_mesh(self.object.data, loop_triangles = True, destructive = True)
         self.tree = BVHTree.FromBMesh(self.bmesh)
         self.bmesh.faces.ensure_lookup_table()
 
@@ -281,6 +286,11 @@ class HalfKnifeOperator(bpy.types.Operator):
             'vert': [([projected], self.prefs.vertex)]
         }
 
+    def select_edges(self):
+        for start, end in self.selection_path:
+            bpy.ops.view3d.select_circle(x = int(start.x), y = int(start.y), radius = 2, wait_for_input = False, mode = 'ADD')
+            bpy.ops.view3d.select_circle(x = int(end.x), y = int(end.y), radius = 2, wait_for_input = False, mode = 'ADD')
+
     def select_path(self, only_ends = False, mode = 'ADD'):
         for start, end in self.selection_path:
             if only_ends:
@@ -288,15 +298,22 @@ class HalfKnifeOperator(bpy.types.Operator):
                 bpy.ops.view3d.select_circle(x = int(end.x), y = int(end.y), radius = 2, wait_for_input = False, mode = mode)
             else:
                 se = end - start
-                l = int(se.length / 4)
+                step_size = 4
+                l = int(se.length / step_size)
+                range_start = 0
+                range_end = l + 1
+                path = []
+                for i in range(range_start, range_end):
+                    p = start + (i / l) * se
+                    path.append([int(p.x), int(p.y)])
                 if l == 0:
                     bpy.ops.view3d.select_circle(x = int(start.x), y = int(start.y), radius = 2, wait_for_input = False, mode = mode)
                     return
-                range_start = 0
-                range_end = l + 1
-                for i in range(range_start, range_end):
-                    p = start + (i / l) * se
-                    bpy.ops.view3d.select_circle(x = int(p.x), y = int(p.y), radius = 2, wait_for_input = False, mode = mode)
+
+                #bpy.ops.view3d.select_lasso(path = path, mode = mode)
+                for x, y in path:
+                    bpy.ops.view3d.select_circle(x = x, y = y, radius = 2, wait_for_input = False, mode = mode)
+
 
     def get_cut_point(self, coord):
         screen_position_px = self.util.location_3d_to_region_2d_object_space(coord)
@@ -350,13 +367,9 @@ class HalfKnifeOperator(bpy.types.Operator):
         bpy.context.collection.objects.link(obj)
 
         # bpy.context.view_layer.objects.active = obj
-        obj.select_set(True)
+        #obj.select_set(True)
         self.cut_obj = obj
 
-    def delete_cut_obj(self):
-        bpy.ops.object.editmode_toggle()
-        bpy.ops.object.delete({"selected_objects": [self.cut_obj]})
-        bpy.ops.object.editmode_toggle()
 
     def delete_vitrual_vertex(self):
         if self.virtual_start:
@@ -389,7 +402,7 @@ class HalfKnifeOperator(bpy.types.Operator):
         self.update_geom()
 
     def fix_broken_edges(self):
-        verts = [v for v in self.initial_vertices]
+        verts = list(self.initial_vertices)
 
         if self.snap_mode == 'VERT':
             verts.append(self.snapped_vert)
@@ -397,12 +410,26 @@ class HalfKnifeOperator(bpy.types.Operator):
         bm = self.bmesh = bmesh.from_edit_mesh(self.object.data)
         fix_dist = self.prefs.edge_autofix_distance
 
+        # bpy.ops.mesh.select_all(action = "DESELECT")
+        bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'EDGE')
+        profiler.lap('Switching mode')
+
+        self.select_edges()
+        profiler.lap('Selecting edges')
+
+        select_edges = list([e for e in bm.edges if e.select])
         broken_edges = []
-        for v in verts:
-            for e in bm.edges:
+        for e in select_edges:
+            for v in verts:
                 if self.util.is_point_on_edge(v.co, e.verts[0].co, e.verts[1].co, fix_dist):
                     broken_edges.append((e, v))
+            e.verts[0].select = e.verts[1].select = e.select = False
+        profiler.lap('Sorting edges')
 
+        bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
+        profiler.lap('Switching mode')
+        for v in self.initial_vertices:
+            v.select = True
         verts_to_merge = []
         for e, v in broken_edges:
             #split_ratio = self.util.get_split_ratio(v.co, e)
@@ -410,16 +437,23 @@ class HalfKnifeOperator(bpy.types.Operator):
             vert = self.addVertOnEdge(v.co, e);
             verts_to_merge.append(v)
             verts_to_merge.append(vert)
+        profiler.lap('Adding verts')
 
         verts_to_merge = list(set(verts_to_merge))
         bmesh.ops.remove_doubles(bm, verts = verts_to_merge, dist = fix_dist)
+        profiler.lap('Welding')
+
         selected_verts = [v for v in bm.verts if v.select]
         for v in selected_verts:
             if (v.co - self.snapped_hit).length < fix_dist:
                 v.select = False
                 selected_verts.remove(v)
+        profiler.lap('Selecting')
+
         self.initial_vertices = selected_verts
         self.update_geom()
+        profiler.lap('Update geom')
+
 
 
     def run_cut(self):
@@ -427,15 +461,27 @@ class HalfKnifeOperator(bpy.types.Operator):
 #        v.co = self.new_vert
         # if not self.hit:
             # return
+        is_multiple_verts = len(self.initial_vertices) > 1
+        full_snap_mode = self._snap_to_center and not is_multiple_verts and not self._snap_to_center_alternate
+        profiler.start()
+        if self.snap_mode == 'EDGE':
+            self.addVertOnEdge(self.snapped_hit, self.edge)
+            self.update_geom()
+            profiler.lap("Adding vert for edge bug fix")
+
+        self.create_cut_obj()
+        profiler.lap("Creating cut object")
+
         if self.prefs.use_edge_autofix and not self.virtual_start: #TODO: make better condition. With virtual start broken edge on the end point will not be fixed.
             self.fix_broken_edges()
+            profiler.lap("Edges fixing")
 
         if not self.initial_vertices:
             return
         #return;
         risk_of_lonely_vert = False
 
-        is_multiple_verts = len(self.initial_vertices) > 1
+
         if not is_multiple_verts:
             start = self.initial_vertices[0]
             end = self.snapped_hit
@@ -445,21 +491,30 @@ class HalfKnifeOperator(bpy.types.Operator):
                 risk_of_lonely_vert = True
                 start_co = start.co
 
-        if self.snap_mode == 'EDGE':
-            self.addVertOnEdge(self.snapped_hit, self.edge)
 
-        self.create_cut_obj()
+
+
         self.delete_vitrual_vertex()
-        if self._snap_to_center and not is_multiple_verts and not self._snap_to_center_alternate:
+        profiler.lap("Virtual vertex")
+
+        if full_snap_mode:
+
             self.select_path()
-            old_verts = list(filter(lambda v: v.select, self.bmesh.verts))
+
+            old_verts = [v for v in self.bmesh.verts if v.select]
             old_verts_coords = [v.co for v in old_verts]
+            profiler.lap("Full snap. Saving verts before cut")
 
-
+        self.cut_obj.select_set(True)
         bpy.ops.mesh.knife_project(cut_through = self._cut_through)
+        profiler.lap("Knife project")
+
         bpy.ops.mesh.select_mode(use_extend = False, use_expand = False, type = 'VERT')
+
         if not self._debug_keep_cut_obj:
-            self.delete_cut_obj()
+            bpy.data.objects.remove(self.cut_obj, do_unlink=True)
+            profiler.lap("Removing cut object")
+
         def compareVectorsApprox(v1, v2, delta = 0.001):
             d = v1 - v2
             return abs(d.x) < delta and abs(d.y) < delta and abs(d.z) < delta
@@ -469,10 +524,8 @@ class HalfKnifeOperator(bpy.types.Operator):
                     return True
             return False
         # # bpy.ops.mesh.select_all(action = 'DESELECT')
-        if self._snap_to_center and not is_multiple_verts and not self._snap_to_center_alternate:
-            self.bmesh.free()
-            bm = self.bmesh = bmesh.from_edit_mesh(self.object.data)
-            # bm.verts.ensure_lookup_table()
+        if full_snap_mode:
+            bm = self.bmesh
             self.select_path()
             new_verts = [v for v in bm.verts if v.select]
             self.select_path(only_ends = True, mode = 'SUB')
@@ -490,16 +543,24 @@ class HalfKnifeOperator(bpy.types.Operator):
                 v2 = edges[1].other_vert(v)
                 v.co = (v1.co + v2.co) / 2
 
-        bmesh.update_edit_mesh(self.object.data, True)
+            profiler.lap("Snap to center edges fixing")
+
+        self.update_geom()
+        profiler.lap("Bmesh update")
+
         select_location = self.util.location_3d_to_region_2d_object_space(self.snapped_hit)
         if select_location:
             bpy.ops.view3d.select(location = (int(select_location.x), int(select_location.y)))
             # Blender 2.91 hack bugfix
             #bpy.ops.object.mode_set(mode = 'OBJECT')
             #bpy.ops.object.mode_set(mode = 'EDIT')
+        profiler.lap("Selecting")
 
         if risk_of_lonely_vert:
             self.fix_lonely_vert(start_co)
+            profiler.lap("Lonely vert fixing")
+
+        profiler.finish()
 
     def select_only(self, bmesh_geom):
         bpy.ops.mesh.select_all(action = 'DESELECT')
@@ -573,7 +634,6 @@ class HalfKnifeOperator(bpy.types.Operator):
         vert = self.initial_vertices[0]
         vert.co = self.inital_centered_hit if self._snap_to_center else self.initial_hit
         self.update_geom()
-        # bmesh.update_edit_mesh(self.object.data, True)
         self.update_snap_axises()
 
     def redraw(self, context, event):
@@ -650,10 +710,10 @@ class HalfKnifeOperator(bpy.types.Operator):
         elif event.type in {'LEFTMOUSE'}:
             self.calc_hit(context, event)
             self.draw.draw_end()
-            self.run_cut()
             self.clear_helper_text()
             if not self.prefs.disable_knife_icon:
                 context.window.cursor_modal_restore()
+            self.run_cut()
             return {'FINISHED'}
 
         self.draw_helper_text()
@@ -673,6 +733,8 @@ class HalfKnifeOperator(bpy.types.Operator):
 
         id = 'half_knife'
         self.prefs = addons_prefs[id].preferences if id in addons_prefs else preferences.HalfKnifePreferencesDefaults()
+
+        profiler.enabled = self.prefs.use_profiler
 
         self.bmesh = bmesh.from_edit_mesh(self.object.data)
 
