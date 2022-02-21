@@ -19,8 +19,8 @@
 bl_info = {
     "name": "Half knife",
     "author": "Artem Poletsky",
-    "version": (1, 3, 1),
-    "blender": (2, 91, 0),
+    "version": (1, 3, 2),
+    "blender": (3, 0, 1),
     # "location": "",
     "description": "Optimized for fast workflow knife tool",
     "warning": "",
