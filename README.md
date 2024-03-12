@@ -1,6 +1,7 @@
 This is a repository of Half Knife addon for Blender.
 
 [User's guide](https://github.com/artempoletsky/half_knife_docs)
+
 [Blender artists disussion](https://blenderartists.org/t/half-knife-fast-knife-tool-for-blender/)
 
 ## Guide for developers
