@@ -5,3 +5,6 @@ v1.3.1
 
 v1.3.2
 1. version update for Blender 3.0
+
+v1.3.4
+1. version update for Blender 4.0

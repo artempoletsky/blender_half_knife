@@ -19,8 +19,8 @@
 bl_info = {
     "name": "Half knife",
     "author": "Artem Poletsky",
-    "version": (1, 3, 2),
-    "blender": (3, 0, 1),
+    "version": (1, 3, 4),
+    "blender": (4, 0, 2),
     # "location": "",
     "description": "Optimized for fast workflow knife tool",
     "warning": "",
@@ -54,7 +54,6 @@ import numpy as np
 from gpu_extras.batch import batch_for_shader
 #import time
 import mathutils
-import bgl
 import math
 
 
@@ -363,7 +362,7 @@ class HalfKnifeOperator(bpy.types.Operator):
 
 
         # Add the mesh to the scene
-        obj = bpy.data.objects.new("Object", me)
+        obj = bpy.data.objects.new("Cut object", me)
         bpy.context.collection.objects.link(obj)
 
         # bpy.context.view_layer.objects.active = obj
@@ -461,6 +460,7 @@ class HalfKnifeOperator(bpy.types.Operator):
 #        v.co = self.new_vert
         # if not self.hit:
             # return
+            
         is_multiple_verts = len(self.initial_vertices) > 1
         full_snap_mode = self._snap_to_center and not is_multiple_verts and not self._snap_to_center_alternate
         profiler.start()
@@ -486,6 +486,8 @@ class HalfKnifeOperator(bpy.types.Operator):
             start = self.initial_vertices[0]
             end = self.snapped_hit
             if start.co == end:
+                self.delete_vitrual_vertex()
+                bpy.data.objects.remove(self.cut_obj, do_unlink=True)
                 return
             if self.snap_mode == 'FACE' and self.face in start.link_faces:
                 risk_of_lonely_vert = True
@@ -625,7 +627,7 @@ class HalfKnifeOperator(bpy.types.Operator):
             altitude_mode_text = ""
 
         cut_through = "On" if self._cut_through else "Off"
-        self.context.area.header_text_set("Shift: turn off snapping(" + shift + ");" + snap_to_center_text + angle_constraint_text + snap_to_center_alternate_text + " Z: cut through: (" + cut_through + ")" + altitude_mode_text)
+        self.context.area.header_text_set("Shift: snapping (" + shift + ");" + snap_to_center_text + angle_constraint_text + snap_to_center_alternate_text + " Z: cut through: (" + cut_through + ")" + altitude_mode_text)
 
     def clear_helper_text(self):
         self.context.area.header_text_set(None)

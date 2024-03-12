@@ -20,7 +20,6 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 #import time
 import mathutils
-import bgl
 from functools import cmp_to_key
 
 class Draw:
@@ -28,8 +27,15 @@ class Draw:
     def __init__(self, context, matrix):
         self.matrix = matrix
         self.context = context
-        self.shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
+        self.shader = gpu.shader.from_builtin('UNIFORM_COLOR')
+        self.edge_shader = gpu.shader.from_builtin('POLYLINE_UNIFORM_COLOR')
+
+        region = bpy.context.region
+        self.edge_shader.uniform_float("viewportSize", (region.width, region.height))
+        self.edge_shader.uniform_float("lineWidth", 3.0)
+
         self.batches = []
+        gpu.state.blend_set("ALPHA")
 
     def batch_polygon(self, face):
         vertices = [self.matrix @ v.co for v in face.verts] if face else []
@@ -49,7 +55,7 @@ class Draw:
         coords = [self.matrix @ v['co'] for e in edges for v in e['verts']]
 
 #        shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
-        return batch_for_shader(self.shader, 'LINES', {"pos": coords})
+        return batch_for_shader(self.edge_shader, 'LINES', {"pos": coords})
 
     def draw_start(self):
 #        args = (self, context)
@@ -81,10 +87,8 @@ class Draw:
 #        if not self.batch:
 #            return
         self.shader.bind()
-        bgl.glEnable(bgl.GL_BLEND)
-        bgl.glLineWidth(3)
-        bgl.glPointSize(12)
-
+        self.edge_shader.bind()
+        
         # face < edge < vert
         def comparator(t1, t2):
             if t1[2] == t2[2]:
@@ -93,7 +97,11 @@ class Draw:
                 return 1
             else:
                 return -1
+            
         batches = sorted(self.batches, key = cmp_to_key(comparator), reverse = False)
-        for b, color, type in batches:
-            self.shader.uniform_float("color", color)
-            b.draw(self.shader)
+        for b, color, batchType in batches:
+            shader = self.edge_shader if batchType == "edge" else self.shader
+            shader.uniform_float("color", color)
+            b.draw(shader)
+        
+                

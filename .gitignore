@@ -1,5 +1,5 @@
-*.blend
 *.blend1
-/video
-/video2
+/blend
 *.zip
+*.pyc
+/half_knife/__pycache__/
