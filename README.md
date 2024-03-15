@@ -1,3 +1,5 @@
+[Download v1.3.4 for Blender 4.0.2](https://github.com/artempoletsky/blender_half_knife/releases/download/v1.3.4/half_knife.zip)
+
 This is a repository of Half Knife addon for Blender.
 
 [User's guide](https://github.com/artempoletsky/half_knife_docs)
